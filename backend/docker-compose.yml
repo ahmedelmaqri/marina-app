@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: marina_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: marina_db
+      POSTGRES_USER: marina_user
+      POSTGRES_PASSWORD: marina_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - marina_pgdata:/var/lib/postgresql/data
+
+volumes:
+  marina_pgdata:
