@@ -35,6 +35,31 @@ class Reservation(models.Model):
 
     date_creation = models.DateTimeField(auto_now_add=True)
     date_confirmation = models.DateTimeField(blank=True, null=True)
+    def calculer_prix(self):
+        if not self.grille_tarifaire:
+            return self.prix_total
+
+        duree = (self.date_depart - self.date_arrivee).days or 1
+        tarif = self.grille_tarifaire.tarif_base
+        taxe = self.grille_tarifaire.taxe or 0
+
+        if self.grille_tarifaire.structure_tarifaire == 'journaliere':
+            sous_total = tarif * duree
+        elif self.grille_tarifaire.structure_tarifaire == 'mensuelle':
+            sous_total = tarif * (duree / 30)
+        elif self.grille_tarifaire.structure_tarifaire == 'annuelle':
+            sous_total = tarif * (duree / 365)
+        else:
+            sous_total = tarif
+
+        return round(sous_total + (sous_total * taxe / 100), 2)
+
+    def save(self, *args, **kwargs):
+        if self.date_arrivee and self.date_depart and self.date_depart <= self.date_arrivee:
+            raise ValueError("La date de départ doit être postérieure à la date d'arrivée.")
+        if self.grille_tarifaire and self.date_arrivee and self.date_depart:
+            self.prix_total = self.calculer_prix()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Réservation #{self.id} - {self.client}"

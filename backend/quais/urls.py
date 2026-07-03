@@ -7,3 +7,11 @@ router.register('places', PlaceViewSet)
 router.register('affectations', AffectationViewSet)
 
 urlpatterns = router.urls
+
+
+from django.urls import path
+from .views import disponibilite
+
+urlpatterns += [
+    path('disponibilite/', disponibilite, name='disponibilite'),
+]
