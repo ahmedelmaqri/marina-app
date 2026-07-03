@@ -38,12 +38,17 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles'
+    'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
     'accounts',
+    'clients',
+    'bateaux',
+    'quais',
+    'contrats',
+    'reservations',
 ]
-
+AUTH_USER_MODEL = 'accounts.Utilisateur'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
