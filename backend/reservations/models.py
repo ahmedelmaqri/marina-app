@@ -5,7 +5,7 @@ from django.db import models
 from clients.models import Client
 from bateaux.models import Bateau
 from contrats.models import GroupeDeContrat
-
+from django.utils import timezone
 
 class Reservation(models.Model):
     STATUT_CHOICES = [
@@ -60,11 +60,50 @@ class Reservation(models.Model):
         if self.grille_tarifaire and self.date_arrivee and self.date_depart:
             self.prix_total = self.calculer_prix()
         super().save(*args, **kwargs)
+        if self.prix_total is not None:
+            self.synchroniser_paiement()
+
+
+
 
     def __str__(self):
         return f"Réservation #{self.id} - {self.client}"
 
+    def synchroniser_paiement(self):
+        """
+        Point d'entrée unique qui maintient les PaiementProgramme cohérents avec prix_total.
+        Appelé après toute opération qui modifie le prix (création, Charge, Remise, modification).
+        """
+        montant_regle = self.paiements.filter(type_paiement='regle').aggregate(
+            total=models.Sum('montant'))['total'] or 0
+        montant_rembourse = self.paiements.filter(type_paiement='rembourse').aggregate(
+            total=models.Sum('montant'))['total'] or 0
 
+        solde_restant = round(float(self.prix_total) - float(montant_regle) + float(montant_rembourse), 2)
+
+        paiement_en_attente = self.paiements.filter(type_paiement='a_regler').order_by('id').first()
+
+        if solde_restant > 0:
+            if paiement_en_attente:
+                paiement_en_attente.montant = solde_restant
+                paiement_en_attente.save()
+            else:
+                PaiementProgramme.objects.create(
+                    reservation=self,
+                    type_paiement='a_regler',
+                    date_echeance=self.date_depart.date() if self.date_depart else timezone.now().date(),
+                    montant=solde_restant,
+                )
+        else:
+            if paiement_en_attente:
+                paiement_en_attente.delete()
+            if solde_restant < 0:
+                PaiementProgramme.objects.create(
+                    reservation=self,
+                    type_paiement='rembourse',
+                    date_echeance=timezone.now().date(),
+                    montant=abs(solde_restant),
+                )
 class Escale(Reservation):
     ELECTRICITE_CHOICES = [
         ('eau', 'Eau'),
@@ -127,11 +166,49 @@ class Charge(models.Model):
     reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='charges')
     article = models.ForeignKey(ArticleCharge, on_delete=models.PROTECT)
     quantite = models.PositiveIntegerField(default=1)
-    prix_unitaire = models.DecimalField(max_digits=10, decimal_places=2)
+    prix_unitaire = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    montant = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     date_ajout = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.article} x{self.quantite} ({self.reservation})"
+
+    def calculer_montant(self):
+        prix_unitaire = self.prix_unitaire if self.prix_unitaire is not None else self.article.prix
+        taxe = self.article.taxe or 0
+        sous_total = float(prix_unitaire) * self.quantite
+        return round(sous_total + (sous_total * float(taxe) / 100), 2)
+
+    def save(self, *args, **kwargs):
+        if self.prix_unitaire is None:
+            self.prix_unitaire = self.article.prix
+
+        ancien_montant = None
+        if self.pk:
+            ancienne_version = Charge.objects.filter(pk=self.pk).first()
+            if ancienne_version:
+                ancien_montant = ancienne_version.montant
+
+        self.montant = self.calculer_montant()
+        super().save(*args, **kwargs)
+        self._appliquer_au_prix(ancien_montant)
+
+    def delete(self, *args, **kwargs):
+        reservation = self.reservation
+        nouveau_prix = float(reservation.prix_total or 0) - float(self.montant or 0)
+        Reservation.objects.filter(id=reservation.id).update(prix_total=round(max(nouveau_prix, 0), 2))
+        super().delete(*args, **kwargs)
+        reservation.refresh_from_db()
+        reservation.synchroniser_paiement()
+
+
+    def _appliquer_au_prix(self, ancien_montant=None):
+        reservation = self.reservation
+        diff = float(self.montant) - float(ancien_montant or 0)
+        nouveau_prix = round(float(reservation.prix_total or 0) + diff, 2)
+        Reservation.objects.filter(id=reservation.id).update(prix_total=nouveau_prix)
+        reservation.refresh_from_db()
+        reservation.synchroniser_paiement()
 
 
 class Remise(models.Model):
@@ -174,6 +251,8 @@ class Remise(models.Model):
 
         reservation.prix_total = round(max(nouveau_prix, 0), 2)
         Reservation.objects.filter(id=reservation.id).update(prix_total=reservation.prix_total)
+        reservation.refresh_from_db()
+        reservation.synchroniser_paiement()
 
 class ListeAttente(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='liste_attente')

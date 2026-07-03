@@ -27,7 +27,8 @@ class ArticleChargeAdmin(admin.ModelAdmin):
 
 @admin.register(Charge)
 class ChargeAdmin(admin.ModelAdmin):
-    list_display = ('article', 'reservation', 'quantite', 'prix_unitaire')
+    list_display = ('article', 'reservation', 'quantite', 'prix_unitaire', 'montant', 'date_ajout')
+    readonly_fields = ('montant',)
 
 
 @admin.register(Remise)
