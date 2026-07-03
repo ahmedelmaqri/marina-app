@@ -95,6 +95,41 @@ class ListeAttenteViewSet(viewsets.ModelViewSet):
     queryset = ListeAttente.objects.all()
     serializer_class = ListeAttenteSerializer
 
+    @action(detail=True, methods=['post'])
+    def transformer_en_escale(self, request, pk=None):
+        attente = self.get_object()
+
+        client = attente.client
+        if not client:
+            return Response({'error': 'Aucun client associé à cette demande.'}, status=400)
+
+        bateau_id = request.data.get('bateau_id')
+        if not bateau_id:
+            return Response({'error': 'bateau_id est requis.'}, status=400)
+
+        from bateaux.models import Bateau
+        try:
+            bateau = Bateau.objects.get(id=bateau_id, client=client)
+        except Bateau.DoesNotExist:
+            return Response({'error': 'Bateau introuvable pour ce client.'}, status=404)
+
+        escale = Escale.objects.create(
+            client=client,
+            bateau=bateau,
+            date_arrivee=attente.date_arrivee,
+            date_depart=attente.date_depart,
+            longueur=attente.longueur,
+            largeur=attente.largeur,
+            statut='confirmee',
+            note=attente.requete_speciale,
+        )
+
+        attente.delete()
+
+        return Response({
+            'message': 'Escale créée avec succès depuis la liste d\'attente.',
+            'escale_id': escale.id,
+        })
 
 class PaiementProgrammeViewSet(viewsets.ModelViewSet):
     queryset = PaiementProgramme.objects.all()
