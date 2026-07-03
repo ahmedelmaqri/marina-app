@@ -156,6 +156,25 @@ class Remise(models.Model):
     def __str__(self):
         return f"Remise {self.montant}{self.unite} ({self.reservation})"
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.appliquer_au_prix()
+
+    def appliquer_au_prix(self):
+        reservation = self.reservation
+        prix_base = reservation.calculer_prix() if reservation.grille_tarifaire else reservation.prix_total
+
+        if prix_base is None:
+            return
+
+        if self.unite == 'pourcentage':
+            nouveau_prix = float(prix_base) - (float(prix_base) * float(self.montant) / 100)
+        else:
+            nouveau_prix = float(prix_base) - float(self.montant)
+
+        reservation.prix_total = round(max(nouveau_prix, 0), 2)
+        Reservation.objects.filter(id=reservation.id).update(prix_total=reservation.prix_total)
+
 class ListeAttente(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='liste_attente')
 

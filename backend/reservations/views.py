@@ -74,6 +74,59 @@ class ContratViewSet(viewsets.ModelViewSet):
             'montant_remboursement': montant_remboursement,
             'frais_appliques': frais,
         })
+    @action(detail=True, methods=['post'])
+    def envoyer(self, request, pk=None):
+        contrat = self.get_object()
+
+        if contrat.statut_signature != 'a_envoyer':
+            return Response({'error': f'Impossible d\'envoyer un contrat au statut "{contrat.statut_signature}".'}, status=400)
+
+        contrat.statut_signature = 'envoye'
+        contrat.date_envoi = timezone.now()
+        contrat.save()
+
+        return Response({
+            'message': 'Contrat envoyé au client.',
+            'id': contrat.id,
+            'statut_signature': contrat.statut_signature,
+            'date_envoi': contrat.date_envoi,
+        })
+
+    @action(detail=True, methods=['post'])
+    def signer(self, request, pk=None):
+        contrat = self.get_object()
+
+        if contrat.statut_signature != 'envoye':
+            return Response({'error': f'Impossible de signer un contrat au statut "{contrat.statut_signature}".'}, status=400)
+
+        contrat.statut_signature = 'signe'
+        contrat.date_signature = timezone.now()
+        contrat.save()
+
+        return Response({
+            'message': 'Contrat signé.',
+            'id': contrat.id,
+            'statut_signature': contrat.statut_signature,
+            'date_signature': contrat.date_signature,
+        })
+
+    @action(detail=True, methods=['post'])
+    def creer_avenant(self, request, pk=None):
+        contrat = self.get_object()
+
+        if contrat.statut_signature != 'signe':
+            return Response({'error': 'Un avenant ne peut être créé que sur un contrat signé.'}, status=400)
+
+        contrat.statut_signature = 'a_envoyer'
+        contrat.date_envoi = None
+        contrat.date_signature = None
+        contrat.save()
+
+        return Response({
+            'message': 'Avenant créé, le contrat repasse au statut "à envoyer".',
+            'id': contrat.id,
+            'statut_signature': contrat.statut_signature,
+        })
 
 
 class ArticleChargeViewSet(viewsets.ModelViewSet):
