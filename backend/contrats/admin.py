@@ -14,3 +14,11 @@ class DocumentAdmin(admin.ModelAdmin):
 class GroupeDeContratAdmin(admin.ModelAdmin):
     list_display = ('nom', 'date_debut', 'date_fin', 'tarif', 'cycle_facturation')
     filter_horizontal = ('documents',)
+
+from .models import GrilleTarifaire
+
+
+@admin.register(GrilleTarifaire)
+class GrilleTarifaireAdmin(admin.ModelAdmin):
+    list_display = ('nom', 'structure_tarifaire', 'tarif_base', 'taxe')
+    list_filter = ('structure_tarifaire',)

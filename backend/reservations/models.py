@@ -18,6 +18,9 @@ class Reservation(models.Model):
 
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='reservations')
     bateau = models.ForeignKey(Bateau, on_delete=models.CASCADE, related_name='reservations')
+    grille_tarifaire = models.ForeignKey(
+        'contrats.GrilleTarifaire', on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations'
+    )
 
     date_arrivee = models.DateTimeField()
     date_depart = models.DateTimeField()
