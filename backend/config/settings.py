@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'quais',
     'contrats',
     'reservations',
+    'drf_spectacular',
 ]
 
 REST_FRAMEWORK = {
@@ -56,6 +57,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 AUTH_USER_MODEL = 'accounts.Utilisateur'
 MIDDLEWARE = [
@@ -142,3 +144,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Marina API',
+    'DESCRIPTION': 'API de gestion de la marina - Port de Tanger Ville',
+    'VERSION': '1.0.0',
+}
