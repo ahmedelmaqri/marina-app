@@ -7,6 +7,10 @@ import type { ReactNode } from 'react'
 import ReservationsList from './pages/reservations/ReservationsList'
 import ContratsList from './pages/contrats/ContratsList'
 import QuaisList from './pages/quais/QuaisList'
+import ClientForm from './pages/clients/ClientForm'
+import ContratForm from './pages/contrats/ContratForm'
+import ContratDetail from './pages/contrats/ContratDetail'
+import ReservationWizard from './pages/reservations/ReservationWizard'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -32,6 +36,11 @@ function AppRoutes() {
       <Route path="/reservations" element={<ProtectedRoute><ReservationsList /></ProtectedRoute>} />
       <Route path="/contrats" element={<ProtectedRoute><ContratsList /></ProtectedRoute>} />
       <Route path="/quais" element={<ProtectedRoute><QuaisList /></ProtectedRoute>} />
+      <Route path="/clients/nouveau" element={<ProtectedRoute><ClientForm /></ProtectedRoute>} />
+      <Route path="/clients/:id/modifier" element={<ProtectedRoute><ClientForm /></ProtectedRoute>} />
+      <Route path="/contrats/nouveau" element={<ProtectedRoute><ContratForm /></ProtectedRoute>} />
+      <Route path="/contrats/:id" element={<ProtectedRoute><ContratDetail /></ProtectedRoute>} />
+      <Route path="/reservations/nouveau" element={<ProtectedRoute><ReservationWizard /></ProtectedRoute>} />
     </Routes>
   )
 }

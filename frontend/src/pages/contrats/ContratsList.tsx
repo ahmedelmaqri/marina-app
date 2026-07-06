@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 
 interface Contrat {
@@ -32,6 +33,7 @@ export default function ContratsList() {
   const [contrats, setContrats] = useState<Contrat[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     api
@@ -46,7 +48,15 @@ export default function ContratsList() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Contrats</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Contrats</h1>
+        <Link
+          to="/contrats/nouveau"
+          className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+        >
+          + Nouveau contrat
+        </Link>
+      </div>
       <table className="w-full border-collapse bg-white shadow">
         <thead>
           <tr className="border-b bg-gray-100 text-left text-sm">
@@ -61,7 +71,11 @@ export default function ContratsList() {
         </thead>
         <tbody>
           {contrats.map((c) => (
-            <tr key={c.id} className="border-b text-sm hover:bg-gray-50">
+            <tr
+              key={c.id}
+              onClick={() => navigate(`/contrats/${c.id}`)}
+              className="cursor-pointer border-b text-sm hover:bg-gray-50"
+            >
               <td className="p-3">#{c.id}</td>
               <td className="p-3">Client {c.client}</td>
               <td className="p-3">Bateau {c.bateau}</td>

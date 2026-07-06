@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 
 interface Reservation {
@@ -31,6 +32,7 @@ export default function ReservationsList() {
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
 
   useEffect(() => {
     api
@@ -45,7 +47,15 @@ export default function ReservationsList() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Réservations</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Réservations</h1>
+        <Link
+          to="/reservations/nouveau"
+          className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+        >
+          + Nouvelle réservation
+        </Link>
+      </div>
       <table className="w-full border-collapse bg-white shadow">
         <thead>
           <tr className="border-b bg-gray-100 text-left text-sm">
