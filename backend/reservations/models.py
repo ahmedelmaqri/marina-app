@@ -1,11 +1,9 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from clients.models import Client
 from bateaux.models import Bateau
 from contrats.models import GroupeDeContrat
 from django.utils import timezone
+
 
 class Reservation(models.Model):
     STATUT_CHOICES = [
@@ -27,6 +25,7 @@ class Reservation(models.Model):
 
     longueur = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
     largeur = models.DecimalField(max_digits=6, decimal_places=2, blank=True, null=True)
+    type_bassin = models.CharField(max_length=100, blank=True)  # §5.1.1 / Etape 4 "Type espace"
 
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='confirmee')
     prix_total = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -35,6 +34,7 @@ class Reservation(models.Model):
 
     date_creation = models.DateTimeField(auto_now_add=True)
     date_confirmation = models.DateTimeField(blank=True, null=True)
+
     def calculer_prix(self):
         if not self.grille_tarifaire:
             return self.prix_total
@@ -57,14 +57,34 @@ class Reservation(models.Model):
     def save(self, *args, **kwargs):
         if self.date_arrivee and self.date_depart and self.date_depart <= self.date_arrivee:
             raise ValueError("La date de départ doit être postérieure à la date d'arrivée.")
+
+        creation = self.pk is None
+
         if self.grille_tarifaire and self.date_arrivee and self.date_depart:
             self.prix_total = self.calculer_prix()
+
         super().save(*args, **kwargs)
+
         if self.prix_total is not None:
             self.synchroniser_paiement()
 
-
-
+        if creation:
+            from quais.services import affecter_place_automatiquement, AucunePlaceDisponibleError
+            try:
+                affecter_place_automatiquement(self)
+            except AucunePlaceDisponibleError:
+                ListeAttente.objects.create(
+                    client=self.client,
+                    nom_prenom=str(self.client),
+                    email=self.client.email,
+                    telephone=self.client.telephone,
+                    longueur=self.bateau.longueur,
+                    largeur=self.bateau.largeur,
+                    type_bateau=self.bateau.type_bateau,
+                    date_arrivee=self.date_arrivee.date(),
+                    date_depart=self.date_depart.date(),
+                    requete_speciale=f"Réservation #{self.id} créée sans place disponible — affectation manuelle requise.",
+                )
 
     def __str__(self):
         return f"Réservation #{self.id} - {self.client}"
@@ -104,6 +124,8 @@ class Reservation(models.Model):
                     date_echeance=timezone.now().date(),
                     montant=abs(solde_restant),
                 )
+
+
 class Escale(Reservation):
     ELECTRICITE_CHOICES = [
         ('eau', 'Eau'),
@@ -142,7 +164,6 @@ class Contrat(Reservation):
 
     def __str__(self):
         return f"Contrat #{self.id} - {self.client}"
-
 
 
 class ArticleCharge(models.Model):
@@ -201,7 +222,6 @@ class Charge(models.Model):
         reservation.refresh_from_db()
         reservation.synchroniser_paiement()
 
-
     def _appliquer_au_prix(self, ancien_montant=None):
         reservation = self.reservation
         diff = float(self.montant) - float(ancien_montant or 0)
@@ -254,6 +274,7 @@ class Remise(models.Model):
         reservation.refresh_from_db()
         reservation.synchroniser_paiement()
 
+
 class ListeAttente(models.Model):
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, related_name='liste_attente')
 
@@ -274,6 +295,7 @@ class ListeAttente(models.Model):
 
     def __str__(self):
         return f"{self.nom_prenom} ({self.date_arrivee} - {self.date_depart})"
+
 
 class PaiementProgramme(models.Model):
     TYPE_CHOICES = [

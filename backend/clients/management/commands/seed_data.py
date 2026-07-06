@@ -41,7 +41,7 @@ class Command(BaseCommand):
         escales = self.seed_escales(clients, grille, articles)
         contrats = self.seed_contrats(clients, grille, groupe_contrat)
         self.seed_liste_attente(clients)
-        self.seed_affectations(places, escales, contrats)
+        #self.seed_affectations(places, escales, contrats)
         self.seed_paiements(escales, contrats)
 
         self.stdout.write(self.style.SUCCESS('\nSeed terminé avec succès !'))
@@ -102,14 +102,20 @@ class Command(BaseCommand):
         groupes = []
         places = []
         config = [
-            ('Ponton A', 'Bassin de plaisance', 8),
-            ('Ponton B', 'Bassin de plaisance', 6),
-            ('Ponton C', 'Zone technique', 4),
+            ('Ponton A', 'Bassin de plaisance', 8, 0, 12, 0, 4, 0, 2),
+            ('Ponton B', 'Bassin de plaisance', 6, 12, 20, 4, 6, 2, 3),
+            ('Ponton C', 'Zone technique', 4, 0, 20, 0, 6, 0, 3),
         ]
-        for nom, type_bassin, nb_places in config:
+        for nom, type_bassin, nb_places, l_min, l_max, la_min, la_max, t_min, t_max in config:
             groupe, _ = GroupeDePlaces.objects.get_or_create(
                 nom=nom,
-                defaults={'type_bassin': type_bassin, 'total_inventaire': nb_places}
+                defaults={
+                    'type_bassin': type_bassin,
+                    'total_inventaire': nb_places,
+                    'longueur_min': l_min, 'longueur_max': l_max,
+                    'largeur_min': la_min, 'largeur_max': la_max,
+                    'tirant_eau_min': t_min, 'tirant_eau_max': t_max,
+                }
             )
             groupes.append(groupe)
             for i in range(1, nb_places + 1):
