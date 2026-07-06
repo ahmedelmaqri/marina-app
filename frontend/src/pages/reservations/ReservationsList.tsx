@@ -70,7 +70,11 @@ export default function ReservationsList() {
         </thead>
         <tbody>
           {reservations.map((r) => (
-            <tr key={r.id} className="border-b text-sm hover:bg-gray-50">
+            <tr
+              key={r.id}
+              onClick={() => navigate(`/reservations/${r.id}`)}
+              className="cursor-pointer border-b text-sm hover:bg-gray-50"
+            >
               <td className="p-3">#{r.id}</td>
               <td className="p-3">Client {r.client}</td>
               <td className="p-3">Bateau {r.bateau}</td>

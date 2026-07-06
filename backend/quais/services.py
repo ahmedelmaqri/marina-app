@@ -9,8 +9,12 @@ class AucunePlaceDisponibleError(Exception):
 
 
 def _dates_sejour(reservation):
-    debut = reservation.date_arrivee.date()
-    fin = reservation.date_depart.date()
+    debut = reservation.date_arrivee
+    fin = reservation.date_depart
+    if hasattr(debut, 'date'):
+        debut = debut.date()
+    if hasattr(fin, 'date'):
+        fin = fin.date()
     nb_nuits = max((fin - debut).days, 1)
     return [debut + timedelta(days=i) for i in range(nb_nuits)]
 

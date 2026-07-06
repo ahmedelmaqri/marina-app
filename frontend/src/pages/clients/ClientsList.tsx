@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import api from '../../api/axios'
+import { Link, useNavigate } from 'react-router-dom'
 
 interface Client {
   id: number
@@ -16,6 +16,7 @@ export default function ClientsList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const navigate = useNavigate()
 
   const loadClients = () => {
     setLoading(true)
@@ -74,12 +75,16 @@ export default function ClientsList() {
           {clients.map((client) => {
             const nom = client.nom_prenom || client.raison_sociale || ''
             return (
-              <tr key={client.id} className="border-b text-sm hover:bg-gray-50">
+              <tr
+                key={client.id}
+                onClick={() => navigate(`/clients/${client.id}`)}
+                className="cursor-pointer border-b text-sm hover:bg-gray-50"
+              >
                 <td className="p-3">{nom}</td>
                 <td className="p-3">{client.email}</td>
                 <td className="p-3">{client.telephone}</td>
                 <td className="p-3">{client.type_client}</td>
-                <td className="p-3">
+                <td className="p-3" onClick={(e) => e.stopPropagation()}>
                   <div className="flex gap-3">
                     <Link to={`/clients/${client.id}/modifier`} className="text-blue-600 hover:underline">
                       Modifier

@@ -73,6 +73,8 @@ class Reservation(models.Model):
             try:
                 affecter_place_automatiquement(self)
             except AucunePlaceDisponibleError:
+                date_arrivee = self.date_arrivee.date() if hasattr(self.date_arrivee, 'date') else self.date_arrivee
+                date_depart = self.date_depart.date() if hasattr(self.date_depart, 'date') else self.date_depart
                 ListeAttente.objects.create(
                     client=self.client,
                     nom_prenom=str(self.client),
@@ -81,8 +83,8 @@ class Reservation(models.Model):
                     longueur=self.bateau.longueur,
                     largeur=self.bateau.largeur,
                     type_bateau=self.bateau.type_bateau,
-                    date_arrivee=self.date_arrivee.date(),
-                    date_depart=self.date_depart.date(),
+                    date_arrivee=date_arrivee,
+                    date_depart=date_depart,
                     requete_speciale=f"Réservation #{self.id} créée sans place disponible — affectation manuelle requise.",
                 )
 
