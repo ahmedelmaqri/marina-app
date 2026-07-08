@@ -39,16 +39,18 @@ class Reservation(models.Model):
         if not self.grille_tarifaire:
             return self.prix_total
 
+        from decimal import Decimal
+
         duree = (self.date_depart - self.date_arrivee).days or 1
         tarif = self.grille_tarifaire.tarif_base
         taxe = self.grille_tarifaire.taxe or 0
 
         if self.grille_tarifaire.structure_tarifaire == 'journaliere':
-            sous_total = tarif * duree
+            sous_total = tarif * Decimal(duree)
         elif self.grille_tarifaire.structure_tarifaire == 'mensuelle':
-            sous_total = tarif * (duree / 30)
+            sous_total = tarif * (Decimal(duree) / Decimal(30))
         elif self.grille_tarifaire.structure_tarifaire == 'annuelle':
-            sous_total = tarif * (duree / 365)
+            sous_total = tarif * (Decimal(duree) / Decimal(365))
         else:
             sous_total = tarif
 

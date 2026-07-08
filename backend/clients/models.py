@@ -25,6 +25,9 @@ class Client(models.Model):
     # Commun
     email = models.EmailField()
     telephone = models.CharField(max_length=20)
+    pays = models.CharField(max_length=100, blank=True)
+    ville = models.CharField(max_length=100, blank=True)
+    code_postal = models.CharField(max_length=20, blank=True)
 
     date_creation = models.DateTimeField(auto_now_add=True)
 
