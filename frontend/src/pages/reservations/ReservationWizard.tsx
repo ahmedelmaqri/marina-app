@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
 
 interface Client {
@@ -59,6 +59,8 @@ function calculerPrix(
 
 export default function ReservationWizard() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const clientIdParam = searchParams.get('client')
   const [step, setStep] = useState(1)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -86,7 +88,7 @@ export default function ReservationWizard() {
   // Étape 2 : contact
   const [clients, setClients] = useState<Client[]>([])
   const [clientMode, setClientMode] = useState<'existant' | 'nouveau'>('existant')
-  const [clientId, setClientId] = useState('')
+  const [clientId, setClientId] = useState(clientIdParam || '')
   const [nouveauClient, setNouveauClient] = useState({ nom_prenom: '', email: '', telephone: '' })
 
   // Étape 3 : bateau
@@ -108,7 +110,13 @@ export default function ReservationWizard() {
     api.get('/grilles-tarifaires/').then((res) => setGrilles(res.data))
     api.get('/clients/').then((res) => setClients(res.data))
   }, [])
-
+  useEffect(() => {
+  if (clientIdParam) {
+    setClientMode('existant')
+    setClientId(clientIdParam)
+    setStep(1) // reste à l'étape 1, le client est déjà pré-rempli pour l'étape 2
+  }
+}, [clientIdParam])
   useEffect(() => {
     if (clientMode === 'existant' && clientId) {
       api.get('/bateaux/').then((res) =>
@@ -415,6 +423,11 @@ export default function ReservationWizard() {
         {step === 2 && (
           <div className="space-y-4">
             <h2 className="font-semibold">2. Sélectionner le contact</h2>
+            {clientIdParam && (
+  <p className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-700">
+    Client pré-sélectionné depuis la fiche contact.
+  </p>
+)}
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <input type="radio" checked={clientMode === 'existant'} onChange={() => setClientMode('existant')} />

@@ -16,6 +16,13 @@ import ContratDetail from './pages/contrats/ContratDetail'
 import QuaisList from './pages/quais/QuaisList'
 import QuaisConfig from './pages/quais/QuaisConfig'
 import type { ReactNode } from 'react'
+import ChangePassword from './pages/ChangePassword'
+import GroupeContratDetail from './pages/contrats/GroupeContratDetail'
+import Parametres from './pages/Parametres'
+import AffectationDetail from './pages/quais/AffectationDetail'
+
+
+
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -40,6 +47,14 @@ function AppRoutes() {
       <Route path="/contrats/:id" element={<ProtectedRoute><ContratDetail /></ProtectedRoute>} />
       <Route path="/quais" element={<ProtectedRoute><QuaisList /></ProtectedRoute>} />
       <Route path="/quais/configuration" element={<ProtectedRoute><QuaisConfig /></ProtectedRoute>} />
+      <Route path="/parametres/mot-de-passe" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+      <Route path="/contrats/groupes/:id" element={<ProtectedRoute><GroupeContratDetail /></ProtectedRoute>} />
+      <Route path="/parametres" element={<ProtectedRoute><Parametres /></ProtectedRoute>} />
+      <Route path="/quais/affectations/:reservationId" element={<ProtectedRoute><AffectationDetail /></ProtectedRoute>} />
+
+
+
+
     </Routes>
   )
 }

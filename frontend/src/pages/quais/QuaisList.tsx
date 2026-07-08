@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 
 interface Affectation {
@@ -12,6 +12,7 @@ interface Affectation {
 
 interface Reservation {
   id: number
+  client: number
   bateau: number
   date_arrivee: string
   date_depart: string
@@ -20,36 +21,65 @@ interface Reservation {
 interface Place {
   id: number
   nom: string
+  groupe_de_places: number | null
 }
 
-const STATUT_LABELS: Record<string, string> = {
-  present: 'Présent',
-  absent: 'Absent',
-  aucun: 'Ni présent ni absent',
+interface GroupeDePlaces {
+  id: number
+  nom: string
 }
 
-const STATUT_COLORS: Record<string, string> = {
-  present: 'bg-green-100 text-green-800',
-  absent: 'bg-gray-200 text-gray-800',
-  aucun: 'bg-white text-gray-500 border border-gray-300',
+interface Bateau {
+  id: number
+  nom_navire: string
+  type_bateau: string
+  longueur: string
+}
+
+interface Client {
+  id: number
+  nom_prenom?: string
+  raison_sociale?: string
+}
+
+function lundiDeLaSemaine(date: Date) {
+  const d = new Date(date)
+  const jour = d.getDay()
+  const diff = (jour === 0 ? -6 : 1) - jour
+  d.setDate(d.getDate() + diff)
+  return d
 }
 
 export default function QuaisList() {
+  const navigate = useNavigate()
   const [affectations, setAffectations] = useState<Affectation[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [places, setPlaces] = useState<Place[]>([])
+  const [groupes, setGroupes] = useState<GroupeDePlaces[]>([])
+  const [bateaux, setBateaux] = useState<Bateau[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
-  const [assigningId, setAssigningId] = useState<number | null>(null)
-  const [placeChoisie, setPlaceChoisie] = useState('')
-  const [assignMessage, setAssignMessage] = useState('')
+  const [semaineDebut, setSemaineDebut] = useState(lundiDeLaSemaine(new Date()))
 
   const load = () => {
     setLoading(true)
-    api.get('/affectations/').then((res) => setAffectations(res.data))
-    api.get('/reservations/').then((res) => setReservations(res.data))
-    api.get('/places/').then((res) => setPlaces(res.data)).finally(() => setLoading(false))
+    Promise.all([
+      api.get('/affectations/'),
+      api.get('/reservations/'),
+      api.get('/places/'),
+      api.get('/groupes-places/'),
+      api.get('/bateaux/'),
+      api.get('/clients/'),
+    ]).then(([a, r, p, g, b, c]) => {
+      setAffectations(a.data)
+      setReservations(r.data)
+      setPlaces(p.data)
+      setGroupes(g.data)
+      setBateaux(b.data)
+      setClients(c.data)
+      setLoading(false)
+    })
   }
 
   useEffect(() => {
@@ -59,114 +89,170 @@ export default function QuaisList() {
   const idsAffectes = new Set(affectations.map((a) => a.reservation))
   const nonAffectees = reservations.filter((r) => !idsAffectes.has(r.id))
 
-  const affecterManuel = async (reservation: Reservation) => {
-    if (!placeChoisie) return
-    setAssignMessage('')
-    const debut = new Date(reservation.date_arrivee)
-    const fin = new Date(reservation.date_depart)
-    const dates: string[] = []
-    for (let d = new Date(debut); d < fin; d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().slice(0, 10))
-    }
+  const bateauInfo = (id: number) => bateaux.find((b) => b.id === id)
+  const clientNom = (id: number) => {
+    const c = clients.find((c) => c.id === id)
+    return c?.nom_prenom || c?.raison_sociale || `#${id}`
+  }
 
-    try {
-      for (const date of dates) {
-        await api.post('/affectations/', {
-          reservation: reservation.id,
-          place: Number(placeChoisie),
-          date,
-          statut: 'aucun',
-        })
-      }
-      setAssigningId(null)
-      setPlaceChoisie('')
-      load()
-    } catch {
-      setAssignMessage("Erreur : une des dates est peut-être déjà occupée sur cette place.")
+  const joursSemaine = useMemo(() => {
+    const jours: Date[] = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(semaineDebut)
+      d.setDate(d.getDate() + i)
+      jours.push(d)
     }
+    return jours
+  }, [semaineDebut])
+
+  const placesParGroupe = (groupeId: number) => places.filter((p) => p.groupe_de_places === groupeId)
+  const placesSansGroupe = places.filter((p) => !p.groupe_de_places)
+
+  const affectationDuJour = (placeId: number, date: Date) => {
+    const dateStr = date.toISOString().slice(0, 10)
+    return affectations.find((a) => a.place === placeId && a.date === dateStr)
+  }
+
+  const couleurStatut = (statut?: string) => {
+    if (statut === 'present') return 'bg-green-100 border-green-300'
+    if (statut === 'absent') return 'bg-gray-200 border-gray-300'
+    if (statut === 'aucun') return 'bg-white border-gray-200'
+    return ''
+  }
+
+  const naviguerSemaine = (delta: number) => {
+    const d = new Date(semaineDebut)
+    d.setDate(d.getDate() + delta * 7)
+    setSemaineDebut(d)
   }
 
   if (loading) return <p>Chargement...</p>
-  if (error) return <p className="text-red-600">{error}</p>
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Gestion des quais</h1>
+        <h1 className="text-2xl font-bold">Affectations</h1>
         <Link to="/quais/configuration" className="rounded bg-gray-700 px-4 py-2 text-sm text-white hover:bg-gray-800">
           Configuration
         </Link>
       </div>
 
       <div className="mb-8 rounded bg-white p-6 shadow">
-        <h2 className="mb-3 font-semibold">Réservations non affectées ({nonAffectees.length})</h2>
-        {assignMessage && <p className="mb-2 text-sm text-red-600">{assignMessage}</p>}
+        <h2 className="mb-3 font-semibold">
+          {nonAffectees.length} réservation(s) non affectée(s) à la date du {new Date().toLocaleDateString('fr-FR')}
+        </h2>
         {nonAffectees.length === 0 && <p className="text-sm text-gray-400">Toutes les réservations sont affectées.</p>}
-        {nonAffectees.map((r) => (
-          <div key={r.id} className="border-b py-2 text-sm last:border-0">
-            <div className="flex items-center justify-between">
-              <span>
-                Réservation #{r.id} — {new Date(r.date_arrivee).toLocaleDateString('fr-FR')} → {new Date(r.date_depart).toLocaleDateString('fr-FR')}
-              </span>
-              <button
-                onClick={() => setAssigningId(assigningId === r.id ? null : r.id)}
-                className="text-blue-600 hover:underline"
-              >
-                Affecter
-              </button>
-            </div>
-            {assigningId === r.id && (
-              <div className="mt-2 flex items-center gap-2">
-                <select
-                  value={placeChoisie}
-                  onChange={(e) => setPlaceChoisie(e.target.value)}
-                  className="rounded border border-gray-300 px-2 py-1 text-sm"
-                >
-                  <option value="">-- Choisir une place --</option>
-                  {places.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nom}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => affecterManuel(r)}
-                  className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
-                >
-                  Confirmer
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-gray-500">
+              <th className="p-2"></th>
+              <th className="p-2">Arrivée</th>
+              <th className="p-2">Départ</th>
+              <th className="p-2">Longueur bateau</th>
+              <th className="p-2">Nom bateau</th>
+              <th className="p-2">Type bateau</th>
+              <th className="p-2">Client</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nonAffectees.map((r) => {
+              const b = bateauInfo(r.bateau)
+              return (
+                <tr key={r.id} className="border-b">
+                  <td className="p-2">
+                    <button
+                      onClick={() => navigate(`/quais/affectations/${r.id}`)}
+                      className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50"
+                    >
+                      Affecter
+                    </button>
+                  </td>
+                  <td className="p-2">{new Date(r.date_arrivee).toLocaleDateString('fr-FR')}</td>
+                  <td className="p-2">{new Date(r.date_depart).toLocaleDateString('fr-FR')}</td>
+                  <td className="p-2">{b?.longueur}m</td>
+                  <td className="p-2">{b?.nom_navire}</td>
+                  <td className="p-2">{b?.type_bateau}</td>
+                  <td className="p-2">{clientNom(r.client)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
 
-      <h2 className="mb-3 text-xl font-bold">Affectations en cours</h2>
-      <table className="w-full border-collapse bg-white shadow">
-        <thead>
-          <tr className="border-b bg-gray-100 text-left text-sm">
-            <th className="p-3">Place</th>
-            <th className="p-3">Réservation</th>
-            <th className="p-3">Date</th>
-            <th className="p-3">Statut</th>
-          </tr>
-        </thead>
-        <tbody>
-          {affectations.slice(0, 100).map((a) => (
-            <tr key={a.id} className="border-b text-sm hover:bg-gray-50">
-              <td className="p-3">Place {a.place}</td>
-              <td className="p-3">Réservation #{a.reservation}</td>
-              <td className="p-3">{new Date(a.date).toLocaleDateString('fr-FR')}</td>
-              <td className="p-3">
-                <span className={`rounded px-2 py-1 text-xs font-medium ${STATUT_COLORS[a.statut] || 'bg-gray-100'}`}>
-                  {STATUT_LABELS[a.statut] || a.statut}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {affectations.length > 100 && (
-        <p className="mt-2 text-sm text-gray-500">Affichage limité aux 100 premières lignes ({affectations.length} au total).</p>
-      )}
+      <div className="rounded bg-white p-4 shadow">
+        <div className="mb-4 flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <button onClick={() => naviguerSemaine(-1)} className="rounded px-2 py-1 hover:bg-gray-100">←</button>
+            <span className="font-medium">
+              {joursSemaine[0].toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            </span>
+            <button onClick={() => naviguerSemaine(1)} className="rounded px-2 py-1 hover:bg-gray-100">→</button>
+          </div>
+          <input
+            type="date"
+            value={semaineDebut.toISOString().slice(0, 10)}
+            onChange={(e) => setSemaineDebut(lundiDeLaSemaine(new Date(e.target.value)))}
+            className="rounded border border-gray-300 px-2 py-1"
+          />
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="w-24 p-2 text-left">Place</th>
+                {joursSemaine.map((j) => (
+                  <th key={j.toISOString()} className="p-2 text-left">
+                    {j.toLocaleDateString('fr-FR', { weekday: 'short' })} {j.getDate()}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...groupes, ...(placesSansGroupe.length ? [{ id: -1, nom: 'Sans groupe' }] : [])].map((groupe) => {
+                const placesDuGroupe = groupe.id === -1 ? placesSansGroupe : placesParGroupe(groupe.id)
+                if (placesDuGroupe.length === 0) return null
+                return (
+                  <>
+                    <tr key={`groupe-${groupe.id}`} className="border-b bg-gray-100">
+                      <td colSpan={8} className="p-2 font-medium text-gray-700">
+                        {groupe.nom} ({placesDuGroupe.length})
+                      </td>
+                    </tr>
+                    {placesDuGroupe.map((place) => (
+                      <tr key={place.id} className="border-b">
+                        <td className="p-2 font-medium text-gray-600">{place.nom}</td>
+                        {joursSemaine.map((jour) => {
+                          const aff = affectationDuJour(place.id, jour)
+                          const reservation = aff ? reservations.find((r) => r.id === aff.reservation) : null
+                          const b = reservation ? bateauInfo(reservation.bateau) : null
+                          return (
+                            <td
+                              key={jour.toISOString()}
+                              onClick={() => reservation && navigate(`/quais/affectations/${reservation.id}`)}
+                              className={`cursor-pointer border p-1.5 ${couleurStatut(aff?.statut)}`}
+                            >
+                              {reservation && (
+                                <div>
+                                  <p className="font-medium">{clientNom(reservation.client)}</p>
+                                  <p className="text-gray-500">
+                                    {b?.nom_navire} {b?.longueur}m {b?.type_bateau}
+                                  </p>
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }

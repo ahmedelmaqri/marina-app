@@ -16,6 +16,7 @@ export default function ClientsList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [recherche, setRecherche] = useState('')
   const navigate = useNavigate()
 
   const loadClients = () => {
@@ -47,20 +48,65 @@ export default function ClientsList() {
     }
   }
 
+  const clientsFiltres = clients.filter((client) => {
+    if (!recherche) return true
+    const q = recherche.toLowerCase()
+    const nom = client.nom_prenom || client.raison_sociale || ''
+    return (
+      nom.toLowerCase().includes(q) ||
+      client.email.toLowerCase().includes(q) ||
+      client.telephone.includes(q)
+    )
+  })
+
+  const exporter = () => {
+    const entetes = ['Nom', 'Email', 'Téléphone', 'Type']
+    const lignes = clientsFiltres.map((c) => [
+      c.nom_prenom || c.raison_sociale || '',
+      c.email,
+      c.telephone,
+      c.type_client,
+    ])
+    const csv = [entetes, ...lignes].map((ligne) => ligne.join(';')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'clients.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) return <p>Chargement...</p>
   if (error) return <p className="text-red-600">{error}</p>
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clients</h1>
-        <Link
-          to="/clients/nouveau"
-          className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-        >
-          + Nouveau client
-        </Link>
+        <h1 className="text-2xl font-bold">Contacts</h1>
+        <div className="flex gap-3">
+          <Link
+            to="/clients/nouveau"
+            className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            + Nouveau contact
+          </Link>
+          <button onClick={exporter} className="rounded bg-gray-700 px-4 py-2 text-sm text-white hover:bg-gray-800">
+            Exporter
+          </button>
+        </div>
       </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Nom, mail ou téléphone"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          className="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
+        />
+      </div>
+
       <table className="w-full border-collapse bg-white shadow">
         <thead>
           <tr className="border-b bg-gray-100 text-left text-sm">
@@ -72,7 +118,7 @@ export default function ClientsList() {
           </tr>
         </thead>
         <tbody>
-          {clients.map((client) => {
+          {clientsFiltres.map((client) => {
             const nom = client.nom_prenom || client.raison_sociale || ''
             return (
               <tr
@@ -85,7 +131,7 @@ export default function ClientsList() {
                 <td className="p-3">{client.telephone}</td>
                 <td className="p-3">{client.type_client}</td>
                 <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex gap-3">
+                  <div className="flex items-center gap-3">
                     <Link to={`/clients/${client.id}/modifier`} className="text-blue-600 hover:underline">
                       Modifier
                     </Link>
@@ -96,11 +142,22 @@ export default function ClientsList() {
                     >
                       {deletingId === client.id ? 'Suppression...' : 'Supprimer'}
                     </button>
+                    <button
+                      onClick={() => navigate(`/reservations/nouveau?client=${client.id}`)}
+                      className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                    >
+                      Nouvelle réservation
+                    </button>
                   </div>
                 </td>
               </tr>
             )
           })}
+          {clientsFiltres.length === 0 && (
+            <tr>
+              <td colSpan={5} className="p-6 text-center text-gray-400">Aucun client trouvé.</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

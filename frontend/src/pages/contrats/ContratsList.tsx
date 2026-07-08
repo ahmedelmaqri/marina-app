@@ -1,47 +1,46 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import DocumentsModal from './DocumentsModal'
+import GroupeContratModal from './GroupeContratModal'
+
+interface GroupeContrat {
+  id: number
+  nom: string
+}
 
 interface Contrat {
   id: number
-  client: number
-  bateau: number
   groupe_contrat: number
-  date_arrivee: string
-  date_depart: string
-  prix_total: string | null
-  statut_signature: string
-}
-
-const SIGNATURE_LABELS: Record<string, string> = {
-  a_envoyer: 'À envoyer',
-  envoye: 'Envoyé',
-  signe: 'Signé',
-  archive: 'Archivé',
-  resilie: 'Résilié',
-}
-
-const SIGNATURE_COLORS: Record<string, string> = {
-  a_envoyer: 'bg-yellow-100 text-yellow-800',
-  envoye: 'bg-blue-100 text-blue-800',
-  signe: 'bg-green-100 text-green-800',
-  archive: 'bg-gray-200 text-gray-800',
-  resilie: 'bg-red-100 text-red-800',
 }
 
 export default function ContratsList() {
+  const navigate = useNavigate()
+  const [groupes, setGroupes] = useState<GroupeContrat[]>([])
   const [contrats, setContrats] = useState<Contrat[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
+
+  const [showDocuments, setShowDocuments] = useState(false)
+  const [showNouveauGroupe, setShowNouveauGroupe] = useState(false)
+
+  const chargerDonnees = () => {
+    setLoading(true)
+    Promise.all([api.get('/groupes-contrats/'), api.get('/contrats-reservations/')])
+      .then(([g, c]) => {
+        setGroupes(g.data)
+        setContrats(c.data)
+      })
+      .catch(() => setError('Impossible de charger les groupes de contrats.'))
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
-    api
-      .get('/contrats-reservations/')
-      .then((res) => setContrats(res.data))
-      .catch(() => setError('Impossible de charger les contrats.'))
-      .finally(() => setLoading(false))
+    chargerDonnees()
   }, [])
+
+  const nbBateaux = (groupeId: number) =>
+    contrats.filter((c) => c.groupe_contrat === groupeId).length
 
   if (loading) return <p>Chargement...</p>
   if (error) return <p className="text-red-600">{error}</p>
@@ -50,47 +49,61 @@ export default function ContratsList() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Contrats</h1>
-        <Link
-          to="/contrats/nouveau"
-          className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+        <button
+          onClick={() => setShowDocuments(true)}
+          className="text-sm text-blue-600 hover:underline"
         >
-          + Nouveau contrat
-        </Link>
+          Gérer les documents
+        </button>
       </div>
-      <table className="w-full border-collapse bg-white shadow">
-        <thead>
-          <tr className="border-b bg-gray-100 text-left text-sm">
-            <th className="p-3">ID</th>
-            <th className="p-3">Client</th>
-            <th className="p-3">Bateau</th>
-            <th className="p-3">Début</th>
-            <th className="p-3">Fin</th>
-            <th className="p-3">Prix</th>
-            <th className="p-3">Statut signature</th>
-          </tr>
-        </thead>
-        <tbody>
-          {contrats.map((c) => (
-            <tr
-              key={c.id}
-              onClick={() => navigate(`/contrats/${c.id}`)}
-              className="cursor-pointer border-b text-sm hover:bg-gray-50"
-            >
-              <td className="p-3">#{c.id}</td>
-              <td className="p-3">Client {c.client}</td>
-              <td className="p-3">Bateau {c.bateau}</td>
-              <td className="p-3">{new Date(c.date_arrivee).toLocaleDateString('fr-FR')}</td>
-              <td className="p-3">{new Date(c.date_depart).toLocaleDateString('fr-FR')}</td>
-              <td className="p-3">{c.prix_total ? `${c.prix_total} MAD` : '-'}</td>
-              <td className="p-3">
-                <span className={`rounded px-2 py-1 text-xs font-medium ${SIGNATURE_COLORS[c.statut_signature] || 'bg-gray-100'}`}>
-                  {SIGNATURE_LABELS[c.statut_signature] || c.statut_signature}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="space-y-4">
+        {groupes.map((g) => (
+          <div
+            key={g.id}
+            className="flex items-center justify-between rounded bg-white p-5 shadow"
+          >
+            <div>
+              <p className="font-semibold text-gray-800">{g.nom}</p>
+              <p className="text-sm text-gray-500">
+                🔒 {nbBateaux(g.id)} bateaux dans groupe
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate(`/contrats/groupes/${g.id}`)}
+                className="rounded border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50"
+              >
+                Voir
+              </button>
+              <button
+                onClick={() => navigate(`/contrats/nouveau?groupe=${g.id}`)}
+                className="rounded bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
+              >
+                Ajouter bateau
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <button
+          onClick={() => setShowNouveauGroupe(true)}
+          className="w-full rounded border-2 border-dashed border-gray-300 bg-gray-50 py-6 text-center text-sm font-medium text-emerald-700 hover:bg-gray-100"
+        >
+          + Nouveau groupe
+        </button>
+      </div>
+
+      {showDocuments && <DocumentsModal onClose={() => setShowDocuments(false)} />}
+      {showNouveauGroupe && (
+        <GroupeContratModal
+          onClose={() => setShowNouveauGroupe(false)}
+          onCreated={() => {
+            setShowNouveauGroupe(false)
+            chargerDonnees()
+          }}
+        />
+      )}
     </div>
   )
 }
