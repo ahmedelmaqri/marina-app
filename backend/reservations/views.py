@@ -75,6 +75,21 @@ class ContratViewSet(viewsets.ModelViewSet):
             'frais_appliques': frais,
         })
     @action(detail=True, methods=['post'])
+    def archiver(self, request, pk=None):
+        contrat = self.get_object()
+
+        if contrat.statut_signature == 'signe':
+            return Response({'error': 'Impossible d\'archiver un contrat déjà signé.'}, status=400)
+
+        contrat.statut_signature = 'archive'
+        contrat.save()
+
+        return Response({
+            'message': 'Contrat archivé avec succès.',
+            'id': contrat.id,
+            'statut_signature': contrat.statut_signature,
+        })
+    @action(detail=True, methods=['post'])
     def envoyer(self, request, pk=None):
         contrat = self.get_object()
 

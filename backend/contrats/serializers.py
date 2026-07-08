@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Document, GrilleTarifaire, GroupeDeContrat
+from .models import Document, GrilleTarifaire, GroupeDeContrat, FraisRemiseGroupe
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -14,7 +14,15 @@ class GrilleTarifaireSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class FraisRemiseGroupeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FraisRemiseGroupe
+        fields = '__all__'
+
+
 class GroupeDeContratSerializer(serializers.ModelSerializer):
+    frais_remises = FraisRemiseGroupeSerializer(many=True, read_only=True)
+
     class Meta:
         model = GroupeDeContrat
         fields = '__all__'

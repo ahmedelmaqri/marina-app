@@ -31,6 +31,11 @@ class GroupeDeContrat(models.Model):
         ('avance', 'A l\'avance'),
         ('debut_mois', 'Début du mois'),
     ]
+    STRUCTURE_CHOICES = [
+        ('journaliere', 'Journalière'),
+        ('mensuelle', 'Mensuelle'),
+        ('annuelle', 'Annuelle'),
+    ]
 
     nom = models.CharField(max_length=100)
     documents = models.ManyToManyField(Document, blank=True, related_name='groupes_contrat')
@@ -45,6 +50,7 @@ class GroupeDeContrat(models.Model):
     grille_tarifaire = models.ForeignKey(
         GrilleTarifaire, on_delete=models.SET_NULL, null=True, blank=True, related_name='groupes_contrat'
     )
+    structure_tarifaire = models.CharField(max_length=20, choices=STRUCTURE_CHOICES, blank=True)
     taxe = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
     cycle_facturation = models.CharField(max_length=20, choices=CYCLE_CHOICES, blank=True)
 
@@ -55,3 +61,19 @@ class GroupeDeContrat(models.Model):
 
     def __str__(self):
         return self.nom
+
+
+class FraisRemiseGroupe(models.Model):
+    CATEGORIE_CHOICES = [
+        ('frais', 'Frais'),
+        ('remise', 'Remise'),
+        ('eau_electricite', 'Eau et Electricité'),
+    ]
+
+    groupe = models.ForeignKey(GroupeDeContrat, on_delete=models.CASCADE, related_name='frais_remises')
+    categorie = models.CharField(max_length=20, choices=CATEGORIE_CHOICES)
+    nom = models.CharField(max_length=100)
+    prix = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.nom} ({self.get_categorie_display()}) - {self.groupe}"
