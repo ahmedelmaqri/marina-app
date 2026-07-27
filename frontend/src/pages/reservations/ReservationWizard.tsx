@@ -744,9 +744,39 @@ export default function ReservationWizard() {
                 onChange={(e) => setAttenteForm({ ...attenteForm, type_bateau: e.target.value })}
                 className="w-full rounded border border-gray-300 px-3 py-2"
               />
-              <p className="text-xs text-gray-400">
-                Dimensions et dates reprises de l'étape 1 ({longueur || '?'}m x {largeur || '?'}m, {dateArrivee || '?'} → {dateDepart || '?'}).
-              </p>
+              <p className="text-xs text-gray-500">Dimensions et dates du séjour</p>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Longueur (m)"
+                  value={longueur}
+                  onChange={(e) => setLongueur(e.target.value)}
+                  className="rounded border border-gray-300 px-3 py-2"
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Largeur (m)"
+                  value={largeur}
+                  onChange={(e) => setLargeur(e.target.value)}
+                  className="rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="date"
+                  value={dateArrivee}
+                  onChange={(e) => setDateArrivee(e.target.value)}
+                  className="rounded border border-gray-300 px-3 py-2"
+                />
+                <input
+                  type="date"
+                  value={dateDepart}
+                  onChange={(e) => setDateDepart(e.target.value)}
+                  className="rounded border border-gray-300 px-3 py-2"
+                />
+              </div>
               <textarea
                 placeholder="Requête spéciale"
                 value={attenteForm.requete_speciale}

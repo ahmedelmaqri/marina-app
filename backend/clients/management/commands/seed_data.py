@@ -9,6 +9,11 @@ Principes suivis :
   quais.services.affecter_place_automatiquement) place chaque bateau dans un ponton
   cohérent avec sa taille (petits voiliers -> Ponton A, bateaux moyens -> Ponton B,
   grosses unités / catamarans -> Ponton C, zone technique).
+- AUCUNE réservation (escale ou contrat) ne dépasse 30 jours, même pour les contrats
+  liés à une grille "annuelle" : ça évite de générer des centaines de lignes
+  Affectation (une par nuit) rien que pour vérifier les données en base ou faire
+  une démo. La grille tarifaire annuelle reste testée/démontrée sur ce format court
+  (le prix reflète juste une fraction de l'année, ce qui est normal vu la durée réduite).
 - Les dates sont calculées relativement à timezone.now(), pour que le seed reste
   logique (passé / en cours / futur) quel que soit le jour où il est lancé.
 - Les statuts (Escale.statut, Contrat.statut_signature, PaiementProgramme.type_paiement)
@@ -36,6 +41,8 @@ from reservations.models import (
 
 fake = Faker('fr_FR')
 
+DUREE_MAX_JOURS = 30  # aucune réservation ne dépasse cette durée dans ce seed
+
 
 def aware(d):
     """Convertit une date en datetime timezone-aware à minuit."""
@@ -43,7 +50,7 @@ def aware(d):
 
 
 class Command(BaseCommand):
-    help = "Génère un jeu de données réaliste et cohérent pour la marina"
+    help = "Génère un jeu de données réaliste et cohérent pour la marina (durées plafonnées à 30 jours)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -129,7 +136,6 @@ class Command(BaseCommand):
     def seed_places(self):
         groupes = []
         places = []
-        # (nom, type_bassin, nb_places, longueur_min, longueur_max, largeur_min, largeur_max, tirant_min, tirant_max)
         config = [
             ('Ponton A', 'Bassin de plaisance', 8, 0, 12, 0, 4, 0, 2),
             ('Ponton B', 'Bassin de plaisance', 6, 12, 20, 4, 6, 2, 3),
@@ -239,8 +245,6 @@ class Command(BaseCommand):
         - Ponton C (0-20m, 0-6m larg., 0-3m tirant, zone technique) -> gros bateaux / catamarans
         """
         cast = [
-            # (type_client, identite, email, tel, nom_navire, type_bateau, modele,
-            #  longueur, largeur, tirant_eau, assurance, numero_police, echeance_jours)
             ('physique', 'Yasmine El Fassi', 'yasmine.elfassi@example.ma', '+212 661 234 567',
              'Zéphyr', 'Voilier', 'Bavaria Cruiser 34', 10.50, 3.40, 1.60,
              'Saham Assurance', 'POL-448210', 300),
@@ -320,10 +324,8 @@ class Command(BaseCommand):
         return bateaux_par_client
 
     def seed_escales(self, bateaux, grille_journaliere, articles):
-        maintenant = timezone.now()
         aujourdhui = timezone.now().date()
 
-        # (nom_navire, jours_arrivee_relatifs, duree_nuits, statut, electricite_eau, methode_paiement)
         plan = [
             ('Zéphyr', -10, 3, 'facturee', 'eau_electricite', 'carte'),
             ('Atlantica', -5, 2, 'a_facturer', 'eau', 'espece'),
@@ -348,7 +350,7 @@ class Command(BaseCommand):
                 date_depart=depart,
                 longueur=infos['bateau'].longueur,
                 largeur=infos['bateau'].largeur,
-                statut='confirmee',  # posé confirmée puis ajusté ci-dessous comme le ferait l'appli
+                statut='confirmee',
                 electricite_eau=elec,
                 methode_paiement=methode,
             )
@@ -359,11 +361,10 @@ class Command(BaseCommand):
 
             escales.append(escale)
 
-        # Charge + remise sur l'escale à venir de Bella Vita, pour valider l'impact sur le prix
         bella = next(e for e in escales if e.bateau.nom_navire == 'Bella Vita')
         prix_avant = bella.prix_total
-        Charge.objects.create(reservation=bella, article=articles[2], quantite=1)  # Nettoyage coque
-        Charge.objects.create(reservation=bella, article=articles[0], quantite=2)  # Glaçons
+        Charge.objects.create(reservation=bella, article=articles[2], quantite=1)
+        Charge.objects.create(reservation=bella, article=articles[0], quantite=2)
         Remise.objects.create(
             reservation=bella, appliquee_mise_a_quai=True,
             montant=10, unite='pourcentage', raison='Client fidèle depuis 3 ans',
@@ -373,7 +374,6 @@ class Command(BaseCommand):
             f'Escale Bella Vita — prix avant charges/remise: {prix_avant} / après: {bella.prix_total}'
         ))
 
-        # Escale passée déjà facturée -> on marque son paiement comme réglé (historique cohérent)
         zephyr_passee = escales[0]
         paiement = zephyr_passee.paiements.filter(type_paiement='a_regler').first()
         if paiement:
@@ -387,37 +387,44 @@ class Command(BaseCommand):
         return escales
 
     def seed_contrats(self, bateaux, grilles, groupes_contrat):
-        maintenant = timezone.now()
+        """
+        Tous les contrats sont bornés à 30 jours maximum (DUREE_MAX_JOURS), y compris
+        ceux liés à la grille "annuelle" — cette dernière est quand même testée/démontrée
+        (le prix est simplement calculé au prorata d'une fenêtre de 30 jours plutôt que
+        365, ce qui reste mathématiquement cohérent avec calculer_prix()).
+        """
         aujourdhui = timezone.now().date()
         contrats = []
 
-        # 1. Contrat annuel signé, en cours (zone technique) — Le Corsaire
+        # 1. Contrat "annuel" (grille annuelle) signé, en cours — Le Corsaire — 30 jours
+        debut_c1 = aujourdhui - timedelta(days=10)
         c1 = Contrat.objects.create(
             client=bateaux['Le Corsaire']['client'],
             bateau=bateaux['Le Corsaire']['bateau'],
             grille_tarifaire=grilles['annuelle'],
             groupe_contrat=groupes_contrat['annuel'],
-            date_arrivee=aware(date(2026, 1, 1)),
-            date_depart=aware(date(2026, 12, 31)),
+            date_arrivee=aware(debut_c1),
+            date_depart=aware(debut_c1 + timedelta(days=DUREE_MAX_JOURS)),
             longueur=bateaux['Le Corsaire']['bateau'].longueur,
             largeur=bateaux['Le Corsaire']['bateau'].largeur,
             statut='confirmee',
             statut_signature='envoye',
         )
-        c1.date_envoi = aware(date(2025, 12, 20))
+        c1.date_envoi = aware(debut_c1 - timedelta(days=5))
         c1.statut_signature = 'signe'
-        c1.date_signature = aware(date(2025, 12, 22))
+        c1.date_signature = aware(debut_c1 - timedelta(days=3))
         c1.save()
         contrats.append(c1)
 
-        # 2. Contrat annuel pas encore envoyé — Ocean Breeze
+        # 2. Contrat "annuel" pas encore envoyé — Ocean Breeze — 30 jours, futur proche
+        debut_c2 = aujourdhui + timedelta(days=15)
         c2 = Contrat.objects.create(
             client=bateaux['Ocean Breeze']['client'],
             bateau=bateaux['Ocean Breeze']['bateau'],
             grille_tarifaire=grilles['annuelle'],
             groupe_contrat=groupes_contrat['annuel'],
-            date_arrivee=aware(date(2026, 1, 1)),
-            date_depart=aware(date(2026, 12, 31)),
+            date_arrivee=aware(debut_c2),
+            date_depart=aware(debut_c2 + timedelta(days=DUREE_MAX_JOURS)),
             longueur=bateaux['Ocean Breeze']['bateau'].longueur,
             largeur=bateaux['Ocean Breeze']['bateau'].largeur,
             statut='confirmee',
@@ -425,14 +432,15 @@ class Command(BaseCommand):
         )
         contrats.append(c2)
 
-        # 3. Contrat mensuel envoyé, en attente de signature — Azur Dream
+        # 3. Contrat mensuel envoyé, en attente de signature — Azur Dream — 28 jours
+        debut_c3 = aujourdhui - timedelta(days=2)
         c3 = Contrat.objects.create(
             client=bateaux['Azur Dream']['client'],
             bateau=bateaux['Azur Dream']['bateau'],
             grille_tarifaire=grilles['mensuelle'],
             groupe_contrat=groupes_contrat['mensuel'],
-            date_arrivee=aware(date(2026, 7, 1)),
-            date_depart=aware(date(2026, 7, 31)),
+            date_arrivee=aware(debut_c3),
+            date_depart=aware(debut_c3 + timedelta(days=28)),
             longueur=bateaux['Azur Dream']['bateau'].longueur,
             largeur=bateaux['Azur Dream']['bateau'].largeur,
             statut='confirmee',
@@ -442,21 +450,22 @@ class Command(BaseCommand):
         c3.save()
         contrats.append(c3)
 
-        # 4. Historique de contrats mensuels pour Océane : un archivé (année précédente)
+        # 4. Historique de contrats mensuels pour Océane : un archivé (passé, 30 jours)
+        debut_c4 = aujourdhui - timedelta(days=90)
         c4 = Contrat.objects.create(
             client=bateaux['Océane']['client'],
             bateau=bateaux['Océane']['bateau'],
             grille_tarifaire=grilles['mensuelle'],
             groupe_contrat=groupes_contrat['mensuel'],
-            date_arrivee=aware(date(2025, 6, 1)),
-            date_depart=aware(date(2025, 6, 30)),
+            date_arrivee=aware(debut_c4),
+            date_depart=aware(debut_c4 + timedelta(days=30)),
             longueur=bateaux['Océane']['bateau'].longueur,
             largeur=bateaux['Océane']['bateau'].largeur,
             statut='facturee',
             statut_signature='envoye',
         )
-        c4.date_envoi = aware(date(2025, 5, 25))
-        c4.date_signature = aware(date(2025, 5, 27))
+        c4.date_envoi = aware(debut_c4 - timedelta(days=6))
+        c4.date_signature = aware(debut_c4 - timedelta(days=4))
         c4.statut_signature = 'archive'
         c4.save()
         contrats.append(c4)
@@ -465,32 +474,34 @@ class Command(BaseCommand):
         if paiement_c4:
             paiement_c4.type_paiement = 'regle'
             paiement_c4.methode = 'virement'
-            paiement_c4.date_traitement = date(2025, 6, 5)
+            paiement_c4.date_traitement = debut_c4 + timedelta(days=5)
             paiement_c4.save()
             c4.synchroniser_paiement()
 
-        # ... et un second, résilié en cours d'année (le client a quitté la marina plus tôt que prévu)
+        # ... et un second, résilié en cours de mois (le client a quitté la marina plus tôt que prévu)
+        debut_c5 = aujourdhui - timedelta(days=40)
         c5 = Contrat.objects.create(
             client=bateaux['Océane']['client'],
             bateau=bateaux['Océane']['bateau'],
             grille_tarifaire=grilles['mensuelle'],
             groupe_contrat=groupes_contrat['mensuel'],
-            date_arrivee=aware(date(2026, 2, 1)),
-            date_depart=aware(date(2026, 2, 28)),
+            date_arrivee=aware(debut_c5),
+            date_depart=aware(debut_c5 + timedelta(days=28)),
             longueur=bateaux['Océane']['bateau'].longueur,
             largeur=bateaux['Océane']['bateau'].largeur,
             statut='annulee',
             statut_signature='envoye',
             note='Résilié anticipativement : le client a changé de port d\'attache.',
         )
-        c5.date_envoi = aware(date(2026, 1, 25))
-        c5.date_signature = aware(date(2026, 1, 27))
+        c5.date_envoi = aware(debut_c5 - timedelta(days=5))
+        c5.date_signature = aware(debut_c5 - timedelta(days=3))
         c5.statut_signature = 'resilie'
         c5.save()
         contrats.append(c5)
 
         self.stdout.write(self.style.SUCCESS(
-            f'{len(contrats)} contrats créés (statuts a_envoyer / envoyé / signé / archivé / résilié)'
+            f'{len(contrats)} contrats créés (statuts a_envoyer / envoyé / signé / archivé / résilié), '
+            f'tous plafonnés à {DUREE_MAX_JOURS} jours max'
         ))
         return contrats
 

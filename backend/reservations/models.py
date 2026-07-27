@@ -42,8 +42,12 @@ class Reservation(models.Model):
         from decimal import Decimal
 
         duree = (self.date_depart - self.date_arrivee).days or 1
-        tarif = self.grille_tarifaire.tarif_base
-        taxe = self.grille_tarifaire.taxe or 0
+        # Coercion défensive : si la grille tarifaire vient d'être créée dans le même
+        # processus Python (ex: un seed) et n'a pas encore été rechargée depuis la base,
+        # ses champs peuvent encore être des float au lieu de Decimal. On force la
+        # conversion via str() pour être sûr de ne jamais mélanger Decimal et float.
+        tarif = Decimal(str(self.grille_tarifaire.tarif_base))
+        taxe = Decimal(str(self.grille_tarifaire.taxe or 0))
 
         if self.grille_tarifaire.structure_tarifaire == 'journaliere':
             sous_total = tarif * Decimal(duree)
@@ -64,6 +68,9 @@ class Reservation(models.Model):
 
         if self.grille_tarifaire and self.date_arrivee and self.date_depart:
             self.prix_total = self.calculer_prix()
+
+        if self.statut == 'confirmee' and self.date_confirmation is None:
+            self.date_confirmation = timezone.now()
 
         super().save(*args, **kwargs)
 
