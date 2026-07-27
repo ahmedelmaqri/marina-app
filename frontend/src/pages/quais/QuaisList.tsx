@@ -50,6 +50,12 @@ function lundiDeLaSemaine(date: Date) {
   return d
 }
 
+function premierJourDuMois(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
+}
+
+type ModeVue = 'semaine' | 'mois'
+
 export default function QuaisList() {
   const navigate = useNavigate()
   const [affectations, setAffectations] = useState<Affectation[]>([])
@@ -61,6 +67,8 @@ export default function QuaisList() {
   const [loading, setLoading] = useState(true)
 
   const [semaineDebut, setSemaineDebut] = useState(lundiDeLaSemaine(new Date()))
+  const [mode, setMode] = useState<ModeVue>('semaine')
+  const [moisDebut, setMoisDebut] = useState(premierJourDuMois(new Date()))
 
   const load = () => {
     setLoading(true)
@@ -105,6 +113,17 @@ export default function QuaisList() {
     return jours
   }, [semaineDebut])
 
+  const joursMois = useMemo(() => {
+    const jours: Date[] = []
+    const nbJours = new Date(moisDebut.getFullYear(), moisDebut.getMonth() + 1, 0).getDate()
+    for (let i = 0; i < nbJours; i++) {
+      const d = new Date(moisDebut)
+      d.setDate(d.getDate() + i)
+      jours.push(d)
+    }
+    return jours
+  }, [moisDebut])
+
   const placesParGroupe = (groupeId: number) => places.filter((p) => p.groupe_de_places === groupeId)
   const placesSansGroupe = places.filter((p) => !p.groupe_de_places)
 
@@ -124,6 +143,12 @@ export default function QuaisList() {
     const d = new Date(semaineDebut)
     d.setDate(d.getDate() + delta * 7)
     setSemaineDebut(d)
+  }
+
+  const naviguerMois = (delta: number) => {
+    const d = new Date(moisDebut)
+    d.setMonth(d.getMonth() + delta)
+    setMoisDebut(premierJourDuMois(d))
   }
 
   if (loading) return <p>Chargement...</p>
@@ -183,75 +208,163 @@ export default function QuaisList() {
       <div className="rounded bg-white p-4 shadow">
         <div className="mb-4 flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
-            <button onClick={() => naviguerSemaine(-1)} className="rounded px-2 py-1 hover:bg-gray-100">←</button>
-            <span className="font-medium">
-              {joursSemaine[0].toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+            <button
+              onClick={() => (mode === 'semaine' ? naviguerSemaine(-1) : naviguerMois(-1))}
+              className="rounded px-2 py-1 hover:bg-gray-100"
+            >
+              ←
+            </button>
+            <span className="min-w-[10rem] text-center font-medium">
+              {(mode === 'semaine' ? joursSemaine[0] : moisDebut).toLocaleDateString('fr-FR', {
+                month: 'long',
+                year: 'numeric',
+              })}
             </span>
-            <button onClick={() => naviguerSemaine(1)} className="rounded px-2 py-1 hover:bg-gray-100">→</button>
+            <button
+              onClick={() => (mode === 'semaine' ? naviguerSemaine(1) : naviguerMois(1))}
+              className="rounded px-2 py-1 hover:bg-gray-100"
+            >
+              →
+            </button>
           </div>
-          <input
-            type="date"
-            value={semaineDebut.toISOString().slice(0, 10)}
-            onChange={(e) => setSemaineDebut(lundiDeLaSemaine(new Date(e.target.value)))}
-            className="rounded border border-gray-300 px-2 py-1"
-          />
+
+          <div className="flex items-center gap-3">
+            <div className="flex rounded border border-gray-300 text-xs">
+              <button
+                onClick={() => setMode('semaine')}
+                className={`px-3 py-1 ${mode === 'semaine' ? 'bg-gray-700 text-white' : 'hover:bg-gray-50'}`}
+              >
+                Semaine
+              </button>
+              <button
+                onClick={() => setMode('mois')}
+                className={`px-3 py-1 ${mode === 'mois' ? 'bg-gray-700 text-white' : 'hover:bg-gray-50'}`}
+              >
+                Mois
+              </button>
+            </div>
+            {mode === 'semaine' && (
+              <input
+                type="date"
+                value={semaineDebut.toISOString().slice(0, 10)}
+                onChange={(e) => setSemaineDebut(lundiDeLaSemaine(new Date(e.target.value)))}
+                className="rounded border border-gray-300 px-2 py-1"
+              />
+            )}
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="w-24 p-2 text-left">Place</th>
-                {joursSemaine.map((j) => (
-                  <th key={j.toISOString()} className="p-2 text-left">
-                    {j.toLocaleDateString('fr-FR', { weekday: 'short' })} {j.getDate()}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[...groupes, ...(placesSansGroupe.length ? [{ id: -1, nom: 'Sans groupe' }] : [])].map((groupe) => {
-                const placesDuGroupe = groupe.id === -1 ? placesSansGroupe : placesParGroupe(groupe.id)
-                if (placesDuGroupe.length === 0) return null
-                return (
-                  <>
-                    <tr key={`groupe-${groupe.id}`} className="border-b bg-gray-100">
-                      <td colSpan={8} className="p-2 font-medium text-gray-700">
-                        {groupe.nom} ({placesDuGroupe.length})
-                      </td>
-                    </tr>
-                    {placesDuGroupe.map((place) => (
-                      <tr key={place.id} className="border-b">
-                        <td className="p-2 font-medium text-gray-600">{place.nom}</td>
-                        {joursSemaine.map((jour) => {
-                          const aff = affectationDuJour(place.id, jour)
-                          const reservation = aff ? reservations.find((r) => r.id === aff.reservation) : null
-                          const b = reservation ? bateauInfo(reservation.bateau) : null
-                          return (
-                            <td
-                              key={jour.toISOString()}
-                              onClick={() => reservation && navigate(`/quais/affectations/${reservation.id}`)}
-                              className={`cursor-pointer border p-1.5 ${couleurStatut(aff?.statut)}`}
-                            >
-                              {reservation && (
-                                <div>
-                                  <p className="font-medium">{clientNom(reservation.client)}</p>
-                                  <p className="text-gray-500">
-                                    {b?.nom_navire} {b?.longueur}m {b?.type_bateau}
-                                  </p>
-                                </div>
-                              )}
-                            </td>
-                          )
-                        })}
+        {mode === 'semaine' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="w-24 p-2 text-left">Place</th>
+                  {joursSemaine.map((j) => (
+                    <th key={j.toISOString()} className="p-2 text-left">
+                      {j.toLocaleDateString('fr-FR', { weekday: 'short' })} {j.getDate()}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...groupes, ...(placesSansGroupe.length ? [{ id: -1, nom: 'Sans groupe' }] : [])].map((groupe) => {
+                  const placesDuGroupe = groupe.id === -1 ? placesSansGroupe : placesParGroupe(groupe.id)
+                  if (placesDuGroupe.length === 0) return null
+                  return (
+                    <>
+                      <tr key={`groupe-${groupe.id}`} className="border-b bg-gray-100">
+                        <td colSpan={8} className="p-2 font-medium text-gray-700">
+                          {groupe.nom} ({placesDuGroupe.length})
+                        </td>
                       </tr>
-                    ))}
-                  </>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {placesDuGroupe.map((place) => (
+                        <tr key={place.id} className="border-b">
+                          <td className="p-2 font-medium text-gray-600">{place.nom}</td>
+                          {joursSemaine.map((jour) => {
+                            const aff = affectationDuJour(place.id, jour)
+                            const reservation = aff ? reservations.find((r) => r.id === aff.reservation) : null
+                            const b = reservation ? bateauInfo(reservation.bateau) : null
+                            return (
+                              <td
+                                key={jour.toISOString()}
+                                onClick={() => reservation && navigate(`/quais/affectations/${reservation.id}`)}
+                                className={`cursor-pointer border p-1.5 ${couleurStatut(aff?.statut)}`}
+                              >
+                                {reservation && (
+                                  <div>
+                                    <p className="font-medium">{clientNom(reservation.client)}</p>
+                                    <p className="text-gray-500">
+                                      {b?.nom_navire} {b?.longueur}m {b?.type_bateau}
+                                    </p>
+                                  </div>
+                                )}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-[10px]">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="sticky left-0 w-20 bg-gray-50 p-1 text-left">Place</th>
+                  {joursMois.map((j) => (
+                    <th key={j.toISOString()} className="min-w-[22px] p-1 text-center font-normal text-gray-500">
+                      {j.getDate()}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...groupes, ...(placesSansGroupe.length ? [{ id: -1, nom: 'Sans groupe' }] : [])].map((groupe) => {
+                  const placesDuGroupe = groupe.id === -1 ? placesSansGroupe : placesParGroupe(groupe.id)
+                  if (placesDuGroupe.length === 0) return null
+                  return (
+                    <>
+                      <tr key={`groupe-mois-${groupe.id}`} className="border-b bg-gray-100">
+                        <td colSpan={joursMois.length + 1} className="p-1 font-medium text-gray-700">
+                          {groupe.nom} ({placesDuGroupe.length})
+                        </td>
+                      </tr>
+                      {placesDuGroupe.map((place) => (
+                        <tr key={place.id} className="border-b">
+                          <td className="sticky left-0 bg-white p-1 font-medium text-gray-600">{place.nom}</td>
+                          {joursMois.map((jour) => {
+                            const aff = affectationDuJour(place.id, jour)
+                            const reservation = aff ? reservations.find((r) => r.id === aff.reservation) : null
+                            const b = reservation ? bateauInfo(reservation.bateau) : null
+                            const titre = reservation
+                              ? `${clientNom(reservation.client)} — ${b?.nom_navire || ''}`
+                              : undefined
+                            return (
+                              <td
+                                key={jour.toISOString()}
+                                title={titre}
+                                onClick={() => reservation && navigate(`/quais/affectations/${reservation.id}`)}
+                                className={`h-5 cursor-pointer border ${couleurStatut(aff?.statut)}`}
+                              />
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="mt-2 text-xs text-gray-400">
+              Survolez une case pour voir le client / bateau, cliquez pour ouvrir l'affectation.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

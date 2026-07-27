@@ -33,10 +33,14 @@ class EscaleViewSet(viewsets.ModelViewSet):
         escale.statut = 'annulee'
         escale.save()
 
+        aujourdhui = timezone.now().date()
+        nb_liberees = escale.affectations.filter(date__gte=aujourdhui).delete()[0]
+
         return Response({
             'message': 'Escale annulée avec succès.',
             'id': escale.id,
             'statut': escale.statut,
+            'places_liberees': nb_liberees,
         })
 
 
@@ -67,12 +71,15 @@ class ContratViewSet(viewsets.ModelViewSet):
         contrat.statut = 'annulee'
         contrat.save()
 
+        nb_liberees = contrat.affectations.filter(date__gte=aujourdhui).delete()[0]
+
         return Response({
             'message': 'Contrat résilié avec succès.',
             'id': contrat.id,
             'statut_signature': contrat.statut_signature,
             'montant_remboursement': montant_remboursement,
             'frais_appliques': frais,
+            'places_liberees': nb_liberees,
         })
     @action(detail=True, methods=['post'])
     def archiver(self, request, pk=None):
