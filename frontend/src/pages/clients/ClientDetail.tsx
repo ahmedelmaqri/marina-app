@@ -31,7 +31,23 @@ interface Bateau {
   numero_immatriculation: string
 }
 
-type Tab = 'details' | 'reservations' | 'bateaux'
+interface DocumentClient {
+  id: number
+  client: number
+  type_document: string
+  fichier: string
+  nom_original: string
+  date_ajout: string
+}
+
+const TYPE_DOCUMENT_LABELS: Record<string, string> = {
+  permis_navigation: 'Permis de navigation',
+  assurance: 'Assurance bateau',
+  piece_identite: "Pièce d'identité",
+  autre: 'Autre',
+}
+
+type Tab = 'details' | 'reservations' | 'bateaux' | 'documents'
 
 export default function ClientDetail() {
   const { id } = useParams()
@@ -41,6 +57,7 @@ export default function ClientDetail() {
   const [client, setClient] = useState<Client | null>(null)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [bateaux, setBateaux] = useState<Bateau[]>([])
+  const [documents, setDocuments] = useState<DocumentClient[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,6 +68,9 @@ export default function ClientDetail() {
     api.get('/bateaux/').then((res) =>
       setBateaux(res.data.filter((b: any) => b.client === Number(id)))
     ).finally(() => setLoading(false))
+    api.get('/documents-clients/').then((res) =>
+      setDocuments(res.data.filter((d: DocumentClient) => d.client === Number(id)))
+    )
   }, [id])
 
   if (loading || !client) return <p>Chargement...</p>
@@ -74,7 +94,7 @@ export default function ClientDetail() {
       </div>
 
       <div className="mb-6 flex gap-1 border-b">
-        {(['details', 'reservations', 'bateaux'] as Tab[]).map((t) => (
+        {(['details', 'reservations', 'bateaux', 'documents'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -129,6 +149,36 @@ export default function ClientDetail() {
           {bateaux.map((b) => (
             <div key={b.id} className="border-b py-2 text-sm last:border-0">
               {b.nom_navire} — {b.type_bateau} — {b.longueur}m x {b.largeur}m — {b.numero_immatriculation}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'documents' && (
+        <div className="rounded bg-white p-6 shadow">
+          {documents.length === 0 && (
+            <p className="text-sm text-gray-400">Aucun document téléversé par ce client.</p>
+          )}
+          {documents.map((d) => (
+            <div
+              key={d.id}
+              className="flex items-center justify-between border-b py-2 text-sm last:border-0"
+            >
+              <div>
+                <span className="font-medium">{TYPE_DOCUMENT_LABELS[d.type_document] || d.type_document}</span>
+                <span className="text-gray-500"> — {d.nom_original}</span>
+                <p className="text-xs text-gray-400">
+                  Ajouté le {new Date(d.date_ajout).toLocaleDateString('fr-FR')}
+                </p>
+              </div>
+              <a
+                href={d.fichier}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                Voir le fichier
+              </a>
             </div>
           ))}
         </div>

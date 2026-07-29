@@ -4,7 +4,8 @@ from django.shortcuts import render
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
 from .models import Client
-from .serializers import ClientSerializer
+from .serializers import ClientSerializer, DocumentClientSerializer
+from portail.models import DocumentClient
 
 
 class ClientViewSet(viewsets.ModelViewSet):
@@ -18,4 +19,11 @@ class ClientViewSet(viewsets.ModelViewSet):
                 "enregistré (avec potentiellement des réservations liées). "
                 "Retirez d'abord ses bateaux, ou archivez le client plutôt que de le supprimer."
             )
-        super().perform_destroy(instance)   
+        super().perform_destroy(instance)
+
+
+class DocumentClientViewSet(viewsets.ReadOnlyModelViewSet):
+    """Lecture seule côté staff : les documents sont téléversés par le client
+    depuis son portail (portail.views.MesDocumentsViewSet), le staff les consulte ici."""
+    queryset = DocumentClient.objects.all()
+    serializer_class = DocumentClientSerializer

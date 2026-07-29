@@ -19,3 +19,15 @@ class IsClient(BasePermission):
             and request.user.role == 'client'
             and hasattr(request.user, 'client_profile')
         )
+
+
+class EstGestionnaireOuAdmin(BasePermission):
+    """Autorise uniquement les comptes internes (gestionnaire ou admin).
+    Exclut explicitement les comptes 'client' du portail, qui ne doivent voir
+    que leurs propres données via les endpoints /api/portail/."""
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user and request.user.is_authenticated
+            and request.user.role in ('gestionnaire', 'admin')
+        )
