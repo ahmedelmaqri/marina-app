@@ -1,0 +1,128 @@
+from rest_framework import viewsets, mixins, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+
+from bateaux.models import Bateau
+from reservations.models import Reservation
+from .models import DocumentClient, Facture
+from .serializers import (
+    ClientActivationSerializer, BateauPortailSerializer,
+    ReservationPortailSerializer, DocumentClientSerializer, FactureSerializer,
+)
+from .permissions import EstProprietaireClient
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
+from django.conf import settings
+import stripe
+from .services import creer_session_paiement
+from .models import Facture, PaiementStripe
+
+class ActivationCompteClientView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ClientActivationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'message': 'Compte activé, vous pouvez vous connecter.'}, status=status.HTTP_201_CREATED)
+
+
+class MesInfosView(APIView):
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def get(self, request):
+        client = request.user.client_profile
+        from clients.serializers import ClientSerializer  # à créer si absent
+        return Response(ClientSerializer(client).data)
+
+
+class MesReservationsViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = ReservationPortailSerializer
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def get_queryset(self):
+        return Reservation.objects.filter(
+            client=self.request.user.client_profile
+        ).select_related('bateau').prefetch_related('paiements')
+
+
+class MesBateauxViewSet(viewsets.ModelViewSet):
+    serializer_class = BateauPortailSerializer
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def get_queryset(self):
+        return Bateau.objects.filter(client=self.request.user.client_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(client=self.request.user.client_profile)
+
+
+class MesDocumentsViewSet(viewsets.ModelViewSet):
+    serializer_class = DocumentClientSerializer
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def get_queryset(self):
+        return DocumentClient.objects.filter(client=self.request.user.client_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(client=self.request.user.client_profile)
+
+
+class MesFacturesViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = FactureSerializer
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def get_queryset(self):
+        return Facture.objects.filter(
+            reservation__client=self.request.user.client_profile
+        ).select_related('reservation')
+
+
+class CreerPaiementFactureView(APIView):
+    permission_classes = [IsAuthenticated, EstProprietaireClient]
+
+    def post(self, request, facture_id):
+        try:
+            facture = Facture.objects.get(
+                id=facture_id,
+                reservation__client=request.user.client_profile,
+                statut='impayee',
+            )
+        except Facture.DoesNotExist:
+            return Response({'error': 'Facture introuvable ou déjà payée.'}, status=404)
+
+        session = creer_session_paiement(facture, request)
+        return Response({'checkout_url': session.url})
+
+
+@csrf_exempt
+def webhook_stripe(request):
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, settings.STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        return HttpResponse(status=400)
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        facture_id = session['metadata']['facture_id']
+
+        try:
+            facture = Facture.objects.get(id=facture_id)
+        except Facture.DoesNotExist:
+            return HttpResponse(status=200)
+
+        facture.statut = 'payee'
+        from django.utils import timezone
+        facture.date_paiement = timezone.now()
+        facture.save()
+
+        PaiementStripe.objects.filter(stripe_session_id=session['id']).update(
+            statut='reussi',
+            stripe_payment_intent=session.get('payment_intent', ''),
+        )
+
+    return HttpResponse(status=200)
