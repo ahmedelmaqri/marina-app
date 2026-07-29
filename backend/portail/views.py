@@ -5,18 +5,19 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from bateaux.models import Bateau
 from reservations.models import Reservation
-from .models import DocumentClient, Facture
+from .models import DocumentClient, Facture, PaiementStripe
 from .serializers import (
     ClientActivationSerializer, BateauPortailSerializer,
     ReservationPortailSerializer, DocumentClientSerializer, FactureSerializer,
 )
 from .permissions import EstProprietaireClient
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.http import HttpResponse
+from django.utils import timezone
 from django.conf import settings
 import stripe
 from .services import creer_session_paiement
-from .models import Facture, PaiementStripe
 
 class ActivationCompteClientView(APIView):
     permission_classes = [AllowAny]
@@ -32,8 +33,8 @@ class MesInfosView(APIView):
     permission_classes = [IsAuthenticated, EstProprietaireClient]
 
     def get(self, request):
+        from clients.serializers import ClientSerializer
         client = request.user.client_profile
-        from clients.serializers import ClientSerializer  # à créer si absent
         return Response(ClientSerializer(client).data)
 
 
@@ -92,11 +93,16 @@ class CreerPaiementFactureView(APIView):
         except Facture.DoesNotExist:
             return Response({'error': 'Facture introuvable ou déjà payée.'}, status=404)
 
-        session = creer_session_paiement(facture, request)
+        try:
+            session = creer_session_paiement(facture, request)
+        except stripe.error.StripeError as e:
+            return Response({'error': str(e)}, status=502)
+
         return Response({'checkout_url': session.url})
 
 
 @csrf_exempt
+@require_POST
 def webhook_stripe(request):
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
@@ -116,7 +122,6 @@ def webhook_stripe(request):
             return HttpResponse(status=200)
 
         facture.statut = 'payee'
-        from django.utils import timezone
         facture.date_paiement = timezone.now()
         facture.save()
 

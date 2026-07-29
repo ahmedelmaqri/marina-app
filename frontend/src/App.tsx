@@ -20,6 +20,7 @@ import ChangePassword from './pages/ChangePassword'
 import GroupeContratDetail from './pages/contrats/GroupeContratDetail'
 import Parametres from './pages/Parametres'
 import AffectationDetail from './pages/quais/AffectationDetail'
+import PortailRoutes from './portail/PortailRoutes'
 
 
 
@@ -52,9 +53,7 @@ function AppRoutes() {
       <Route path="/parametres" element={<ProtectedRoute><Parametres /></ProtectedRoute>} />
       <Route path="/quais/affectations/:reservationId" element={<ProtectedRoute><AffectationDetail /></ProtectedRoute>} />
 
-
-
-
+      <Route path="/portail/*" element={<PortailRoutes />} />
     </Routes>
   )
 }

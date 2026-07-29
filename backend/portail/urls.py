@@ -5,9 +5,9 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     ActivationCompteClientView, MesInfosView,
     MesReservationsViewSet, MesBateauxViewSet, MesDocumentsViewSet, MesFacturesViewSet,
+    CreerPaiementFactureView, webhook_stripe,
 )
-from django.urls import path
-from .views import CreerPaiementFactureView, webhook_stripe
+
 router = DefaultRouter()
 router.register('mes-reservations', MesReservationsViewSet, basename='mes-reservations')
 router.register('mes-bateaux', MesBateauxViewSet, basename='mes-bateaux')
@@ -19,9 +19,6 @@ urlpatterns = router.urls + [
     path('login/', CustomTokenObtainPairView.as_view()),
     path('login/refresh/', TokenRefreshView.as_view()),
     path('me/', MesInfosView.as_view()),
-]
-
-urlpatterns += [
     path('factures/<int:facture_id>/payer/', CreerPaiementFactureView.as_view()),
     path('webhook-stripe/', webhook_stripe),
 ]
