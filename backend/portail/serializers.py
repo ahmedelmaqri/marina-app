@@ -22,6 +22,10 @@ class ClientActivationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Aucun client trouvé avec ces informations.")
         if client.compte_id is not None:
             raise serializers.ValidationError("Un compte existe déjà pour ce client.")
+        if Utilisateur.objects.filter(username__iexact=data['email']).exists():
+            raise serializers.ValidationError(
+                "Un compte utilisateur existe déjà avec cet e-mail. Contactez la marina."
+            )
         self.client_obj = client
         return data
 
