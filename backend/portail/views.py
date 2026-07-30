@@ -137,4 +137,10 @@ def webhook_stripe(request):
             stripe_payment_intent=session.get('payment_intent', ''),
         )
 
+        facture.reservation.paiements.filter(type_paiement='a_regler').update(
+            type_paiement='regle',
+            methode='carte',
+            date_traitement=timezone.now().date(),
+        )
+
     return HttpResponse(status=200)

@@ -12,6 +12,7 @@ from .serializers import (
     ReservationSerializer, EscaleSerializer, ContratSerializer, ArticleChargeSerializer,
     ChargeSerializer, RemiseSerializer, ListeAttenteSerializer, PaiementProgrammeSerializer
 )
+from portail.models import Facture
 
 
 class ReservationViewSet(viewsets.ModelViewSet):
@@ -42,6 +43,29 @@ class EscaleViewSet(viewsets.ModelViewSet):
             'statut': escale.statut,
             'places_liberees': nb_liberees,
         })
+
+    @action(detail=True, methods=['post'])
+    def creer_facture(self, request, pk=None):
+        escale = self.get_object()
+
+        if escale.factures.exists():
+            return Response({'error': 'Une facture existe déjà pour cette réservation.'}, status=400)
+
+        montant = request.data.get('montant') or escale.prix_total
+        if not montant:
+            return Response({'error': "Impossible de facturer : aucun montant renseigné pour cette réservation."}, status=400)
+
+        facture = Facture.objects.create(reservation=escale, montant=montant)
+
+        escale.statut = 'facturee'
+        escale.save(update_fields=['statut'])
+
+        return Response({
+            'id': facture.id,
+            'numero': facture.numero,
+            'montant': str(facture.montant),
+            'statut': facture.statut,
+        }, status=201)
 
 
 class ContratViewSet(viewsets.ModelViewSet):

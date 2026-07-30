@@ -435,6 +435,16 @@ class WebhookStripeTestCase(BasePortailTestCase):
         self.assertEqual(paiement.statut, 'reussi')
         self.assertEqual(paiement.stripe_payment_intent, 'pi_test_123')
 
+        # Bug réel : le paiement programmé "à régler" de la réservation ne suivait
+        # jamais le paiement de la facture, la réservation restait "à régler" côté
+        # client et côté staff même une fois la facture payée.
+        self.assertEqual(
+            self.reservation_a.paiements.filter(type_paiement='a_regler').count(), 0
+        )
+        paiement_regle = self.reservation_a.paiements.get(type_paiement='regle')
+        self.assertEqual(paiement_regle.methode, 'carte')
+        self.assertIsNotNone(paiement_regle.date_traitement)
+
     @patch('portail.views.stripe.Webhook.construct_event')
     def test_webhook_facture_introuvable(self, mock_construct):
         mock_construct.return_value = {

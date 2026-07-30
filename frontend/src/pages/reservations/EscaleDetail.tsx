@@ -2,6 +2,13 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 
+interface FactureResume {
+  id: number
+  numero: string
+  montant: string
+  statut: string
+}
+
 interface Escale {
   id: number
   code: string
@@ -18,6 +25,7 @@ interface Escale {
   note: string
   date_creation?: string
   date_confirmation?: string
+  facture: FactureResume | null
 }
 
 interface Client {
@@ -116,6 +124,12 @@ const STATUT_STYLES: Record<string, string> = {
   en_cours: 'bg-blue-100 text-blue-800',
   a_facturer: 'bg-amber-100 text-amber-800',
   facturee: 'bg-gray-200 text-gray-800',
+}
+
+const FACTURE_STATUT_LABELS: Record<string, string> = {
+  impayee: 'Impayée',
+  payee: 'Payée',
+  annulee: 'Annulée',
 }
 
 function formatDateLong(iso: string) {
@@ -278,6 +292,20 @@ export default function EscaleDetail() {
     }
   }
 
+  const handleCreerFacture = async () => {
+    if (!window.confirm('Créer une facture pour cette réservation ? Elle sera visible et payable dans l\'espace client.')) return
+    setActionLoading(true)
+    try {
+      await api.post(`/escales/${id}/creer_facture/`)
+      setMessage('Facture créée avec succès.')
+      load()
+    } catch (err: any) {
+      setMessage(err.response?.data?.error || 'Erreur lors de la création de la facture.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleAjouterCharge = async () => {
     if (!articleId) return
     setActionLoading(true)
@@ -405,6 +433,15 @@ export default function EscaleDetail() {
           >
             ✎ Modifier
           </button>
+          {!escale.facture && escale.statut !== 'annulee' && (
+            <button
+              onClick={handleCreerFacture}
+              disabled={actionLoading}
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              Créer une facture
+            </button>
+          )}
           {escale.statut !== 'annulee' && (
             <button
               onClick={handleAnnuler}
@@ -672,6 +709,12 @@ export default function EscaleDetail() {
             {totalCharges > 0 && (
               <p className="mt-1 text-xs text-gray-400">
                 dont {totalCharges.toFixed(2)} MAD de charges additionnelles
+              </p>
+            )}
+            {escale.facture && (
+              <p className="mt-2 rounded bg-blue-50 p-2 text-xs text-blue-800">
+                Facture {escale.facture.numero} — {escale.facture.montant} MAD —{' '}
+                {FACTURE_STATUT_LABELS[escale.facture.statut] || escale.facture.statut}
               </p>
             )}
           </div>

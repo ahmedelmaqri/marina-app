@@ -16,16 +16,21 @@ Lancer une seule classe :
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APITestCase
 
 from clients.models import Client
 from bateaux.models import Bateau
 from contrats.models import GrilleTarifaire, GroupeDeContrat
+from portail.models import Facture
 from quais.models import GroupeDePlaces, Place, Affectation
 from reservations.models import (
     Escale, Contrat, ArticleCharge, Charge, Remise, ListeAttente, PaiementProgramme
 )
+
+Utilisateur = get_user_model()
 
 
 def aware(d):
@@ -306,3 +311,44 @@ class SynchronisationPaiementTestCase(BaseReservationTestCase):
 
         self.assertEqual(self.escale.paiements.filter(type_paiement='a_regler').count(), 0)
         self.assertEqual(self.escale.paiements.filter(type_paiement='regle').count(), 1)
+
+
+class CreerFactureTestCase(BaseReservationTestCase, APITestCase):
+    """Vérifie l'action staff /api/escales/<id>/creer_facture/ qui rend la
+    réservation payable depuis le portail client (bug réel : aucune facture
+    n'était jamais créée automatiquement, le client ne voyait donc rien à payer)."""
+
+    def setUp(self):
+        super().setUp()
+        self.gestionnaire = Utilisateur.objects.create_user(
+            username='gestionnaire.test', password='xxxxxxxx', role='gestionnaire',
+        )
+        self.client.force_authenticate(user=self.gestionnaire)
+        self.escale = Escale.objects.create(
+            client=self.client_obj, bateau=self.bateau, grille_tarifaire=self.grille_journaliere,
+            date_arrivee=aware(date(2026, 8, 1)), date_depart=aware(date(2026, 8, 4)),
+        )
+
+    def test_creer_facture_reussie(self):
+        response = self.client.post(f'/api/escales/{self.escale.id}/creer_facture/')
+        self.assertEqual(response.status_code, 201)
+
+        self.escale.refresh_from_db()
+        self.assertEqual(self.escale.statut, 'facturee')
+        self.assertEqual(Facture.objects.filter(reservation=self.escale).count(), 1)
+        facture = Facture.objects.get(reservation=self.escale)
+        self.assertEqual(facture.montant, self.escale.prix_total)
+
+    def test_creer_facture_refuse_si_deja_existante(self):
+        self.client.post(f'/api/escales/{self.escale.id}/creer_facture/')
+        response = self.client.post(f'/api/escales/{self.escale.id}/creer_facture/')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Facture.objects.filter(reservation=self.escale).count(), 1)
+
+    def test_creer_facture_refuse_compte_client(self):
+        compte_client = Utilisateur.objects.create_user(
+            username='client.test', password='xxxxxxxx', role='client',
+        )
+        self.client.force_authenticate(user=compte_client)
+        response = self.client.post(f'/api/escales/{self.escale.id}/creer_facture/')
+        self.assertEqual(response.status_code, 403)

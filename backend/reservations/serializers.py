@@ -12,9 +12,22 @@ class ReservationSerializer(serializers.ModelSerializer):
 
 
 class EscaleSerializer(serializers.ModelSerializer):
+    facture = serializers.SerializerMethodField()
+
     class Meta:
         model = Escale
         fields = '__all__'
+
+    def get_facture(self, obj):
+        facture = obj.factures.order_by('-date_emission').first()
+        if not facture:
+            return None
+        return {
+            'id': facture.id,
+            'numero': facture.numero,
+            'montant': str(facture.montant),
+            'statut': facture.statut,
+        }
 
 
 class ContratSerializer(serializers.ModelSerializer):
