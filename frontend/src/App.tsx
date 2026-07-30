@@ -26,8 +26,11 @@ import PortailRoutes from './portail/PortailRoutes'
 
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" replace />
+  const { isAuthenticated, user } = useAuth()
+  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'gestionnaire')) {
+    return <Navigate to="/login" replace />
+  }
+  return <Layout>{children}</Layout>
 }
 
 function AppRoutes() {

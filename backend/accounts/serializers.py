@@ -37,3 +37,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['username'] = user.username
         token['role'] = user.role
         return token
+
+
+class StaffTokenObtainPairSerializer(CustomTokenObtainPairSerializer):
+    """Connexion réservée aux comptes internes (gestionnaire/admin).
+    Les comptes 'client' doivent se connecter via /api/portail/login/."""
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if self.user.role == 'client':
+            raise serializers.ValidationError(
+                "Ce compte est un compte client, connectez-vous depuis le portail client."
+            )
+        return data

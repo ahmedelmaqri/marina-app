@@ -1,11 +1,24 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from accounts.serializers import CustomTokenObtainPairSerializer
 from clients.models import Client
 from bateaux.models import Bateau
 from reservations.models import Reservation, PaiementProgramme
 from .models import DocumentClient, Facture
 
 Utilisateur = get_user_model()
+
+
+class PortailTokenObtainPairSerializer(CustomTokenObtainPairSerializer):
+    """Connexion réservée au portail client : refuse les comptes internes."""
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if self.user.role != 'client':
+            raise serializers.ValidationError(
+                "Ce compte n'est pas un compte client. Utilisez l'interface interne."
+            )
+        return data
 
 
 class ClientActivationSerializer(serializers.Serializer):

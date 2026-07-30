@@ -10,8 +10,11 @@ import PortailBateaux from './pages/PortailBateaux'
 import PortailDocuments from './pages/PortailDocuments'
 
 function PortailProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = usePortailAuth()
-  return isAuthenticated ? <PortailLayout>{children}</PortailLayout> : <Navigate to="/portail/login" replace />
+  const { isAuthenticated, user } = usePortailAuth()
+  if (!isAuthenticated || user?.role !== 'client') {
+    return <Navigate to="/portail/login" replace />
+  }
+  return <PortailLayout>{children}</PortailLayout>
 }
 
 export default function PortailRoutes() {

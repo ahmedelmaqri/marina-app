@@ -194,6 +194,25 @@ class LoginTestCase(BasePortailTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('access', response.data)
 
+    def test_login_refuse_compte_gestionnaire(self):
+        """Bug réel : un compte interne (gestionnaire/admin) ne doit pas pouvoir
+        se connecter via /api/portail/login/, réservé aux clients."""
+        Utilisateur.objects.create_user(
+            username='gestionnaire@example.ma', password=self.mot_de_passe, role='gestionnaire',
+        )
+        response = self.client.post('/api/portail/login/', {
+            'username': 'gestionnaire@example.ma', 'password': self.mot_de_passe,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_login_staff_refuse_compte_client(self):
+        """Bug réel : un compte client ne doit pas pouvoir se connecter via
+        /api/token/ (interface interne) et donc accéder au dashboard/staff."""
+        response = self.client.post('/api/token/', {
+            'username': self.client_a.email, 'password': self.mot_de_passe,
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class MesInfosViewTestCase(BasePortailTestCase):
     def test_me_retourne_le_bon_client(self):

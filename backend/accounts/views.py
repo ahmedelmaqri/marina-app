@@ -6,7 +6,7 @@ from .models import Utilisateur
 from .serializers import UtilisateurSerializer
 from .permissions import IsAdmin
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer
+from .serializers import CustomTokenObtainPairSerializer, StaffTokenObtainPairSerializer
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -23,6 +23,11 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+
+
+class StaffTokenObtainPairView(TokenObtainPairView):
+    """Connexion pour l'interface interne : refuse les comptes 'client'."""
+    serializer_class = StaffTokenObtainPairSerializer
 
 class ChangerMotDePasseView(APIView):
     permission_classes = [IsAuthenticated]

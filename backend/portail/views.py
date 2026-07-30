@@ -2,6 +2,7 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from bateaux.models import Bateau
 from reservations.models import Reservation
@@ -9,6 +10,7 @@ from .models import DocumentClient, Facture, PaiementStripe
 from .serializers import (
     ClientActivationSerializer, BateauPortailSerializer,
     ReservationPortailSerializer, DocumentClientSerializer, FactureSerializer,
+    PortailTokenObtainPairSerializer,
 )
 from .permissions import EstProprietaireClient
 from django.views.decorators.csrf import csrf_exempt
@@ -18,6 +20,11 @@ from django.utils import timezone
 from django.conf import settings
 import stripe
 from .services import creer_session_paiement
+
+class PortailTokenObtainPairView(TokenObtainPairView):
+    """Connexion pour le portail client : refuse les comptes gestionnaire/admin."""
+    serializer_class = PortailTokenObtainPairSerializer
+
 
 class ActivationCompteClientView(APIView):
     permission_classes = [AllowAny]
